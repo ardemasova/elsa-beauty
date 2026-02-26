@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Elsa ERP</title>
+
+  <!-- Main styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    th {
+      background-color: #2f3a4a;
+      color: white;
+    }
+    input {
+      padding: 6px;
+      margin: 4px;
+    }
+    button {
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- =======================
+       HEADER
+  ======================= -->
+  <header class="app-header">
+    <img src="logo.png" alt="Elsa ERP" class="logo">
+    <h1>Elsa ERP</h1>
+  </header>
+
+  <!-- =======================
+       MAIN
+  ======================= -->
+  <main class="container">
+
+    <!-- =======================
+         PARTNERS
+    ======================= -->
+    <section class="card">
+      <h2>Partners (Tenant 1)</h2>
+
+      <div>
+        <input type="text" id="name" placeholder="Partner name">
+        <input type="text" id="contact" placeholder="Contact information">
+        <button onclick="createPartner()">Add partner</button>
+      </div>
+
+      <table id="partners-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Contact</th>
+            <th>Created at</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- =======================
+         PRODUCTS
+    ======================= -->
+    <section class="card" style="margin-top: 40px;">
+      <h2>Products (Tenant 1)</h2>
+
+      <div>
+        <input type="text" id="product-name" placeholder="Product name">
+        <input type="number" id="product-price" placeholder="Price">
+        <input type="number" id="product-stock" placeholder="Stock">
+        <button onclick="createProduct()">Add product</button>
+      </div>
+
+      <table id="products-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Created at</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- =======================
+       SCRIPTS
+  ======================= -->
+  <script>
+    const tenantId = 1;
+    const partnersApi = `http://localhost:3000/tenant/${tenantId}/partners`;
+    const productsApi = `http://localhost:3000/tenant/${tenantId}/products`;
+
+    // ---------- PARTNERS ----------
+    async function loadPartners() {
+      const res = await fetch(partnersApi);
+      const data = await res.json();
+      const tbody = document.querySelector('#partners-table tbody');
+      tbody.innerHTML = '';
+      data.forEach(p => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${p.id}</td>
+            <td>${p.name}</td>
+            <td>${p.contact || ''}</td>
+            <td>${new Date(p.created_at).toLocaleString()}</td>
+            <td>
+              <button onclick="deletePartner(${p.id})">❌</button>
+              <button onclick="updatePartner(${p.id})">✏️</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    async function createPartner() {
+      const name = document.getElementById('name').value;
+      const contact = document.getElementById('contact').value;
+      if (!name) return alert('Please enter partner name');
+
+      await fetch(partnersApi, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, contact })
+      });
+
+      document.getElementById('name').value = '';
+      document.getElementById('contact').value = '';
+      loadPartners();
+    }
+
+    async function deletePartner(id) {
+      await fetch(`${partnersApi}/${id}`, { method: 'DELETE' });
+      loadPartners();
+    }
+
+    async function updatePartner(id) {
+      const name = prompt('New name');
+      const contact = prompt('New contact');
+      if (!name) return;
+
+      await fetch(`${partnersApi}/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, contact })
+      });
+      loadPartners();
+    }
+
+    // ---------- PRODUCTS ----------
+    async function loadProducts() {
+      const res = await fetch(productsApi);
+      const data = await res.json();
+      const tbody = document.querySelector('#products-table tbody');
+      tbody.innerHTML = '';
+      data.forEach(p => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${p.id}</td>
+            <td>${p.name}</td>
+            <td>${p.price}</td>
+            <td>${p.stock}</td>
+            <td>${new Date(p.created_at).toLocaleString()}</td>
+            <td>
+              <button onclick="deleteProduct(${p.id})">❌</button>
+              <button onclick="updateProduct(${p.id})">✏️</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    async function createProduct() {
+      const name = document.getElementById('product-name').value;
+      const price = Number(document.getElementById('product-price').value);
+      const stock = Number(document.getElementById('product-stock').value);
+
+      if (!name) return alert('Please enter product name');
+
+      await fetch(productsApi, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, price, stock })
+      });
+
+      document.getElementById('product-name').value = '';
+      document.getElementById('product-price').value = '';
+      document.getElementById('product-stock').value = '';
+      loadProducts();
+    }
+
+    async function deleteProduct(id) {
+      await fetch(`${productsApi}/${id}`, { method: 'DELETE' });
+      loadProducts();
+    }
+
+    async function updateProduct(id) {
+      const name = prompt('Product name');
+      const price = prompt('Price');
+      const stock = prompt('Stock');
+      if (!name) return;
+
+      await fetch(`${productsApi}/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name,
+          price: Number(price),
+          stock: Number(stock)
+        })
+      });
+      loadProducts();
+    }
+
+    loadPartners();
+    loadProducts();
+  </script>
+
+</body>
+</html>

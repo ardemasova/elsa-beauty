@@ -1,0 +1,158 @@
+/* =========================
+   Общий стиль
+========================= */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Arial, sans-serif;
+  background: linear-gradient(135deg, #f5f7fa, #e4ecf7);
+  color: #1f2937;
+
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* =========================
+   Шапка
+========================= */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 40px;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  width: 100%;
+}
+
+.logo {
+  height: 40px;              /* 👈 КЛЮЧ */
+  width: auto;               /* сохраняем пропорции */
+  max-width: 160px;          /* защита от огромных png */
+  object-fit: contain;
+
+  display: block;
+}
+
+/* =========================
+   Контент
+========================= */
+.container {
+  width: 100%;
+  padding: 40px;
+}
+
+/* =========================
+   Карточки
+========================= */
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  width: 100%;
+}
+
+/* =========================
+   Формы
+========================= */
+.card form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.card input,
+.card select {
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  min-width: 180px;
+  background: white;
+}
+
+.card input:focus,
+.card select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+}
+
+/* =========================
+   Кнопки
+========================= */
+button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #111827;
+  color: white;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button.danger {
+  background: #dc2626;
+}
+
+button.secondary {
+  background: #6b7280;
+}
+
+/* =========================
+   Таблицы
+========================= */
+.card table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.card thead {
+  background: #f9fafb;
+}
+
+.card th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.card td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 14px;
+}
+
+.card tr:hover td {
+  background: #f9fafb;
+}
+
+/* =========================
+   Табличные действия
+========================= */
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* =========================
+   Утилиты
+========================= */
+.muted {
+  color: #6b7280;
+  font-size: 13px;
+}

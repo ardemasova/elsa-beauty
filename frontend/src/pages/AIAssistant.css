@@ -1,0 +1,158 @@
+.ai-assistant-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f9f7f2 0%, #fafafa 100%);
+  padding: 40px 20px;
+}
+
+/* Header */
+.ai-header {
+  background: linear-gradient(135deg, #ac9186 0%, #8f7365 100%);
+  border-radius: 16px;
+  padding: 40px;
+  margin-bottom: 40px;
+  box-shadow: 0 8px 24px rgba(172, 145, 134, 0.2);
+  color: white;
+}
+
+.ai-header-content {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.ai-icon {
+  font-size: 48px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.ai-title-section h1 {
+  font-size: 36px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.ai-subtitle {
+  font-size: 16px;
+  margin: 8px 0 0 0;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+/* Tabs Navigation */
+.ai-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 32px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ai-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.ai-tab:hover {
+  border-color: #ac9186;
+  color: #ac9186;
+  background: #f9f7f2;
+}
+
+.ai-tab.active {
+  background: #ac9186;
+  color: white;
+  border-color: #ac9186;
+  box-shadow: 0 4px 12px rgba(172, 145, 134, 0.3);
+}
+
+.tab-icon {
+  font-size: 18px;
+}
+
+.tab-label {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tab-label {
+    display: inline;
+  }
+}
+
+/* Content */
+.ai-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .ai-assistant-container {
+    padding: 20px;
+  }
+
+  .ai-header {
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .ai-header-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .ai-icon {
+    font-size: 40px;
+  }
+
+  .ai-title-section h1 {
+    font-size: 24px;
+  }
+
+  .ai-subtitle {
+    font-size: 14px;
+  }
+
+  .ai-tabs {
+    margin-bottom: 24px;
+  }
+
+  .ai-tab {
+    flex: 1;
+    justify-content: center;
+  }
+}

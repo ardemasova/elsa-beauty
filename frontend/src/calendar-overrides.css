@@ -1,0 +1,97 @@
+/* Переопределение всех цветов FullCalendar */
+
+/* Заголовки дней - ЧЁРНЫЕ */
+.fc-col-header-cell {
+  color: #1f2937 !important;
+  background-color: white !important;
+}
+
+.fc-col-header-cell span {
+  color: #1f2937 !important;
+}
+
+.fc-col-header-cell * {
+  color: #1f2937 !important;
+}
+
+/* Цифры дней - ЧЁРНЫЕ */
+.fc-daygrid-day-number {
+  color: #1f2937 !important;
+}
+
+/* Часы слева - КОРИЧНЕВЫЕ - все селекторы */
+.fc-timegrid-axis {
+  color: #663d04 !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.fc-timegrid-axis * {
+  color: #663d04  !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.fc-timegrid-axis span {
+  color: #663d04  !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.fc-timegrid-axis div {
+  color: #663d04  !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.fc-timegrid-slot-label {
+  color: #663d04  !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.fc-timegrid-slot-label * {
+  color: #663d04  !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.fc-col-time-cell {
+  color: #663d04  !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.fc-col-time-cell * {
+  color: #663d04  !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+/* Все текст в календаре */
+.fc {
+  color: #1f2937 !important;
+}
+
+.fc-daygrid-day-number,
+.fc-col-header-cell {
+  color: #1f2937 !important;
+}
+
+/* Всё содержимое заголовков */
+.fc-col-header {
+  color: #1f2937 !important;
+}
+
+.fc-col-header-cell,
+.fc-col-header-cell * {
+  color: #1f2937 !important;
+}

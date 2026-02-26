@@ -1,0 +1,573 @@
+const express = require('express');
+const db = require('../db');
+const { authenticateToken } = require('../middleware/auth');
+
+const router = express.Router();
+
+const TENANT_SCHEMAS = {
+  "0575e7ca-a781-46ad-9b2d-0a85acb4a5d2": "salon_demo",
+};
+
+function tenantSchema(tenantId) {
+  const schema = TENANT_SCHEMAS[tenantId];
+  if (!schema) throw new Error(`No schema mapped for tenantId ${tenantId}`);
+  return `"${schema}"`;
+}
+
+// =======================
+// GET all payments (incoming/outgoing/all)
+// =======================
+router.get('/', authenticateToken, async (req, res) => {
+  const schema = tenantSchema(req.user.tenantId);
+  const userId = req.user.id;
+  const role = req.user.role;
+  const type = req.query.type || 'all'; // 'incoming', 'outgoing', 'all'
+
+  try {
+    let query = `
+      SELECT 
+        p.id,
+        p.partner_id,
+        p.appointment_id,
+        p.amount,
+        p.method,
+        p.type,
+        p.paid_at,
+        a.start_time as appointment_start_time,
+        m.name as master_name,
+        c.name as partner_name,
+        c.type as partner_type
+      FROM ${schema}.payments p
+      LEFT JOIN ${schema}.appointments a ON p.appointment_id = a.id
+      LEFT JOIN ${schema}.masters m ON a.master_id = m.id
+      LEFT JOIN ${schema}.clients c ON p.partner_id = c.id
+    `;
+
+    let params = [];
+
+    // Фильтруем по типу платежа
+    if (type !== 'all') {
+      query += ` WHERE p.type = $1`;
+      params.push(type);
+    }
+
+    // Если мастер - показываем только платежи его записей
+    if (role === 'master') {
+      const masterResult = await db.query(
+        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
+        [userId]
+      );
+
+      if (masterResult.rows.length === 0) {
+        return res.status(403).json({ message: 'Master profile not found' });
+      }
+
+      const masterId = masterResult.rows[0].id;
+      const whereClause = params.length > 0 ? ' AND ' : ' WHERE ';
+      query += `${whereClause}a.master_id = $${params.length + 1}`;
+      params.push(masterId);
+    }
+
+    query += ` ORDER BY p.paid_at DESC`;
+    const { rows } = await db.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('FETCH PAYMENTS ERROR:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =======================
+// GET single payment by id
+// =======================
+router.get('/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const schema = tenantSchema(req.user.tenantId);
+  const userId = req.user.id;
+  const role = req.user.role;
+
+  try {
+    const { rows } = await db.query(
+      `
+      SELECT 
+        p.id,
+        p.partner_id,
+        p.appointment_id,
+        p.amount,
+        p.method,
+        p.type,
+        p.paid_at,
+        a.start_time as appointment_start_time,
+        m.name as master_name,
+        c.name as partner_name,
+        c.type as partner_type
+      FROM ${schema}.payments p
+      LEFT JOIN ${schema}.appointments a ON p.appointment_id = a.id
+      LEFT JOIN ${schema}.masters m ON a.master_id = m.id
+      LEFT JOIN ${schema}.clients c ON p.partner_id = c.id
+      WHERE p.id = $1
+      `,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    if (role === 'master' && rows[0].appointment_id) {
+      const masterResult = await db.query(
+        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
+        [userId]
+      );
+
+      if (masterResult.rows.length === 0) {
+        return res.status(403).json({ message: 'Master profile not found' });
+      }
+
+      const appointmentCheck = await db.query(
+        `SELECT master_id FROM ${schema}.appointments WHERE id = $1`,
+        [rows[0].appointment_id]
+      );
+
+      if (appointmentCheck.rows[0].master_id !== masterResult.rows[0].id) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('FETCH PAYMENT ERROR:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =======================
+// POST create payment
+// =======================
+router.post('/', authenticateToken, async (req, res) => {
+  const { partner_id, appointment_id, amount, method, type = 'incoming' } = req.body;
+  const schema = tenantSchema(req.user.tenantId);
+  const userId = req.user.id;
+  const role = req.user.role;
+
+  if (!partner_id || !amount || !method) {
+    return res.status(400).json({
+      message: 'partner_id, amount, method required',
+    });
+  }
+
+  if (!['card', 'cash'].includes(method)) {
+    return res.status(400).json({
+      message: 'method must be "card" or "cash"',
+    });
+  }
+
+  if (!['incoming', 'outgoing'].includes(type)) {
+    return res.status(400).json({
+      message: 'type must be "incoming" or "outgoing"',
+    });
+  }
+
+  if (isNaN(amount) || parseFloat(amount) <= 0) {
+    return res.status(400).json({
+      message: 'amount must be a positive number',
+    });
+  }
+
+  try {
+    console.log('Creating payment with:', { partner_id, appointment_id, amount, method, type });
+
+    // Проверяем что партнер существует
+    const partnerResult = await db.query(
+      `SELECT id, type FROM ${schema}.clients WHERE id = $1`,
+      [partner_id]
+    );
+
+    if (partnerResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Partner not found' });
+    }
+
+    // Проверяем что назначение платежа соответствует типу партнера
+    const partnerType = partnerResult.rows[0].type;
+    const expectedPaymentType = partnerType === 'customer' ? 'incoming' : 'outgoing';
+    
+    if (type !== expectedPaymentType) {
+      return res.status(400).json({ 
+        message: `${partnerType === 'customer' ? 'Customer' : 'Vendor'} payments must be ${expectedPaymentType}` 
+      });
+    }
+
+    // Если есть appointment_id, проверяем его
+    if (appointment_id) {
+      const appointmentResult = await db.query(
+        `SELECT id, master_id FROM ${schema}.appointments WHERE id = $1`,
+        [appointment_id]
+      );
+
+      if (appointmentResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Appointment not found' });
+      }
+
+      // Если мастер - проверяем что это его запись
+      if (role === 'master') {
+        const masterResult = await db.query(
+          `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
+          [userId]
+        );
+
+        if (masterResult.rows.length === 0) {
+          return res.status(403).json({ message: 'Master profile not found' });
+        }
+
+        if (appointmentResult.rows[0].master_id !== masterResult.rows[0].id) {
+          return res.status(403).json({ message: 'Can only create payments for your appointments' });
+        }
+      }
+    }
+
+    // Создаём платёж
+    const { rows } = await db.query(
+      `
+      INSERT INTO ${schema}.payments (partner_id, appointment_id, amount, method, type, paid_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      RETURNING 
+        id,
+        partner_id,
+        appointment_id,
+        amount,
+        method,
+        type,
+        paid_at
+      `,
+      [partner_id, appointment_id || null, parseFloat(amount), method, type]
+    );
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('CREATE PAYMENT ERROR:', err);
+
+    if (err.code === '23505') {
+      return res.status(409).json({ message: 'Payment for this combination already exists' });
+    }
+
+    res.status(500).json({ message: 'Server error', details: err.message });
+  }
+});
+
+// =======================
+// PUT update payment
+// =======================
+router.put('/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { partner_id, appointment_id, amount, method, type } = req.body;
+  const schema = tenantSchema(req.user.tenantId);
+  const userId = req.user.id;
+  const role = req.user.role;
+
+  if (!partner_id || !amount || !method || !type) {
+    return res.status(400).json({
+      message: 'partner_id, amount, method, type required',
+    });
+  }
+
+  if (!['card', 'cash'].includes(method)) {
+    return res.status(400).json({
+      message: 'method must be "card" or "cash"',
+    });
+  }
+
+  if (!['incoming', 'outgoing'].includes(type)) {
+    return res.status(400).json({
+      message: 'type must be "incoming" or "outgoing"',
+    });
+  }
+
+  if (isNaN(amount) || parseFloat(amount) <= 0) {
+    return res.status(400).json({
+      message: 'amount must be a positive number',
+    });
+  }
+
+  try {
+    // Проверяем существует ли платёж
+    const checkPayment = await db.query(
+      `
+      SELECT p.id, a.master_id 
+      FROM ${schema}.payments p
+      LEFT JOIN ${schema}.appointments a ON p.appointment_id = a.id
+      WHERE p.id = $1
+      `,
+      [id]
+    );
+
+    if (checkPayment.rows.length === 0) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    // Если мастер - проверяем что это его платёж
+    if (role === 'master') {
+      const masterResult = await db.query(
+        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
+        [userId]
+      );
+
+      if (masterResult.rows.length === 0) {
+        return res.status(403).json({ message: 'Master profile not found' });
+      }
+
+      if (checkPayment.rows[0].master_id && checkPayment.rows[0].master_id !== masterResult.rows[0].id) {
+        return res.status(403).json({ message: 'Can only edit your own payments' });
+      }
+    }
+
+    // Проверяем партнера
+    const partnerResult = await db.query(
+      `SELECT id, type FROM ${schema}.clients WHERE id = $1`,
+      [partner_id]
+    );
+
+    if (partnerResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Partner not found' });
+    }
+
+    // Если есть appointment_id, проверяем его
+    if (appointment_id) {
+      const appointmentResult = await db.query(
+        `SELECT id FROM ${schema}.appointments WHERE id = $1`,
+        [appointment_id]
+      );
+
+      if (appointmentResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Appointment not found' });
+      }
+    }
+
+    // Обновляем платёж
+    const { rows } = await db.query(
+      `
+      UPDATE ${schema}.payments
+      SET partner_id = $1, appointment_id = $2, amount = $3, method = $4, type = $5
+      WHERE id = $6
+      RETURNING 
+        id,
+        partner_id,
+        appointment_id,
+        amount,
+        method,
+        type,
+        paid_at
+      `,
+      [partner_id, appointment_id || null, parseFloat(amount), method, type, id]
+    );
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('UPDATE PAYMENT ERROR:', err);
+
+    if (err.code === '23505') {
+      return res.status(409).json({ message: 'Payment for this combination already exists' });
+    }
+
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =======================
+// DELETE payment
+// =======================
+router.delete('/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const schema = tenantSchema(req.user.tenantId);
+  const userId = req.user.id;
+  const role = req.user.role;
+
+  try {
+    // Проверяем существует ли платёж
+    const checkPayment = await db.query(
+      `
+      SELECT p.id, a.master_id 
+      FROM ${schema}.payments p
+      LEFT JOIN ${schema}.appointments a ON p.appointment_id = a.id
+      WHERE p.id = $1
+      `,
+      [id]
+    );
+
+    if (checkPayment.rows.length === 0) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    // Если мастер - проверяем что это его платёж
+    if (role === 'master') {
+      const masterResult = await db.query(
+        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
+        [userId]
+      );
+
+      if (masterResult.rows.length === 0) {
+        return res.status(403).json({ message: 'Master profile not found' });
+      }
+
+      if (checkPayment.rows[0].master_id && checkPayment.rows[0].master_id !== masterResult.rows[0].id) {
+        return res.status(403).json({ message: 'Can only delete your own payments' });
+      }
+    }
+
+    // Удаляем платёж
+    await db.query(
+      `DELETE FROM ${schema}.payments WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ message: 'Payment deleted successfully' });
+  } catch (err) {
+    console.error('DELETE PAYMENT ERROR:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// =======================
+// GET invoice data for payment
+// =======================
+router.get('/:id/invoice', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const schema = tenantSchema(req.user.tenantId);
+  const userId = req.user.id;
+  const role = req.user.role;
+
+  try {
+    // Получаем данные платежа
+    const paymentResult = await db.query(
+      `
+      SELECT 
+        p.id,
+        p.partner_id,
+        p.appointment_id,
+        p.amount,
+        p.method,
+        p.type,
+        p.paid_at,
+        c.name as partner_name,
+        c.email as partner_email,
+        c.phone as partner_phone,
+        c.address as partner_address,
+        c.type as partner_type
+      FROM ${schema}.payments p
+      LEFT JOIN ${schema}.clients c ON p.partner_id = c.id
+      WHERE p.id = $1
+      `,
+      [id]
+    );
+
+    if (paymentResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    const payment = paymentResult.rows[0];
+
+    // Проверяем права доступа для мастера
+    if (role === 'master' && payment.appointment_id) {
+      const masterResult = await db.query(
+        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
+        [userId]
+      );
+
+      if (masterResult.rows.length === 0) {
+        return res.status(403).json({ message: 'Master profile not found' });
+      }
+
+      const appointmentCheck = await db.query(
+        `SELECT master_id FROM ${schema}.appointments WHERE id = $1`,
+        [payment.appointment_id]
+      );
+
+      if (appointmentCheck.rows[0].master_id !== masterResult.rows[0].id) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+    }
+
+    // Получаем данные назначения если есть
+    let appointment = null;
+    if (payment.appointment_id) {
+      const appointmentResult = await db.query(
+        `
+        SELECT 
+          a.id,
+          a.start_time,
+          a.service_id,
+          m.name as master_name,
+          s.name as service_name
+        FROM ${schema}.appointments a
+        LEFT JOIN ${schema}.masters m ON a.master_id = m.id
+        LEFT JOIN ${schema}.services s ON a.service_id = s.id
+        WHERE a.id = $1
+        `,
+        [payment.appointment_id]
+      );
+
+      if (appointmentResult.rows.length > 0) {
+        appointment = appointmentResult.rows[0];
+      }
+    }
+
+    // Получаем данные компании из settings
+    // Получаем данные компании из settings
+    const settingsResult = await db.query(
+      `
+      SELECT 
+        name,
+        address,
+        vat_number,
+        bank_name,
+        bank_account,
+        bank_code,
+        email,
+        phone,
+        website
+      FROM ${schema}.settings
+      LIMIT 1
+      `
+    );
+
+    let company = {
+      name: 'ELSA Beauty',
+      address: '',
+      vat_number: '',
+      bank_name: '',
+      bank_account: '',
+      bank_code: '',
+      email: '',
+      phone: '',
+      website: '',
+    };
+
+    if (settingsResult.rows.length > 0) {
+      company = settingsResult.rows[0];
+    }
+
+    // Формируем ответ
+    res.json({
+      payment: {
+        id: payment.id,
+        amount: parseFloat(payment.amount),
+        method: payment.method,
+        type: payment.type,
+        paid_at: payment.paid_at,
+      },
+      partner: {
+        name: payment.partner_name,
+        email: payment.partner_email,
+        phone: payment.partner_phone,
+        address: payment.partner_address,
+        type: payment.partner_type,
+      },
+      appointment: appointment,
+      company: company,
+    });
+  } catch (err) {
+    console.error('GET INVOICE ERROR:', err);
+    res.status(500).json({ message: 'Server error', details: err.message });
+  }
+});
+
+module.exports = router;
