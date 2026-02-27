@@ -1,5 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypts');
+const bcryptjs = require('bcryptjs');
 const db = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { tenantContext } = require('../middleware/tenantContext');
@@ -53,7 +53,7 @@ router.post('/', authenticateToken, tenantContext, async (req, res) => {
     const exists = await db.query('SELECT id FROM public.users WHERE email=$1', [email]);
     if (exists.rows.length > 0) return res.status(409).json({ message: 'User already exists' });
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcryptjs.hash(password, 10);
     console.log('JWT user:', req.user);
     const { rows } = await db.query(
       'INSERT INTO public.users (email, password_hash, role, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id, email, role, tenant_id',
@@ -105,7 +105,7 @@ router.put('/:id', authenticateToken, tenantContext, async (req, res) => {
 
     // Если пароль предоставлен, обновляем его
     if (password) {
-      const hash = await bcrypt.hash(password, 10);
+      const hash = await bcryptjs.hash(password, 10);
       updateQuery = `
         UPDATE public.users
         SET email = $1, password_hash = $2, role = $3
