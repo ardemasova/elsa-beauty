@@ -1,6 +1,26 @@
 # env files (secrets)
+.env
+**/.env
 backend/.env
 frontend/.env.local
 frontend/.env.production
 frontend/.env.development
 frontend/.env
+
+# dependencies
+node_modules/
+**/node_modules/
+
+# build artifacts
+dist/
+build/
+**/dist/
+**/build/
+**/.vite/
+
+# logs
+*.log
+
+# OS files
+.DS_Store
+**/.DS_Store
