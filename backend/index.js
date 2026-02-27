@@ -17,11 +17,12 @@ const app = express();
 
 app.use(cors({
   origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5174',
-    'https://subumbelliferous-judith-jaspered.ngrok-free.dev'
-  ],
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+  'http://46.225.185.172:5173',
+  'http://46.225.185.172:5174'
+],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
