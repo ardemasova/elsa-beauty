@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { fetchClients, createClient, updateClient, deleteClient } from "../api/api";
+import { fetchClientsByType, createClient, updateClient, deleteClient } from "../api/api";
 import "./Clients.css";
+
 
 export default function Clients() {
   const [partners, setPartners] = useState([]);
@@ -26,13 +27,8 @@ export default function Clients() {
 
   const loadPartners = async () => {
     try {
-      const type = activeTab === 'all' ? null : activeTab;
-      const query = type ? `?type=${type}` : '';
-      const response = await fetch(`/api/clients${query}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error("Failed to load partners");
-      const data = await response.json();
+      const type = activeTab === "all" ? null : activeTab;
+      const data = await fetchClientsByType(token, type);
       setPartners(data);
     } catch (err) {
       setError(err.message);

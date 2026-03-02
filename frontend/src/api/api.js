@@ -142,3 +142,9 @@ export const loginUser = (email, password) =>
 
 export const registerUser = (data) =>
   apiRequestNoAuth("/auth/register", "POST", data);
+
+// Clients (with type filter)
+export const fetchClientsByType = (token, type) => {
+  const query = type && type !== "all" ? `?type=${encodeURIComponent(type)}` : "";
+  return apiRequest(`/clients${query}`, "GET", null, token);
+};
