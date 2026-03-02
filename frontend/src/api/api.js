@@ -148,3 +148,7 @@ export const fetchClientsByType = (token, type) => {
   const query = type && type !== "all" ? `?type=${encodeURIComponent(type)}` : "";
   return apiRequest(`/clients${query}`, "GET", null, token);
 };
+
+// Payments
+export const deletePayment = (token, id) =>
+  apiRequest(`/payments/${id}`, "DELETE", null, token);

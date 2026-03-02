@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPayments } from "../api/paymentsApi";
+import { fetchClients, fetchAppointments, deletePayment } from "../api/api";
 import "./Payments.css";
 import CreatePaymentModal from "./components/CreatePaymentModal";
 import EditPaymentModal from "./components/EditPaymentModal";
@@ -53,11 +54,7 @@ export default function Payments() {
 
   const loadPartners = async () => {
     try {
-      const response = await fetch("/api/clients", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error("Failed to load partners");
-      const data = await response.json();
+      const data = await fetchClients(token);
       setPartners(data);
     } catch (err) {
       console.error("Failed to load partners:", err);
@@ -66,11 +63,7 @@ export default function Payments() {
 
   const loadAppointments = async () => {
     try {
-      const response = await fetch("/api/appointments", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error("Failed to load appointments");
-      const data = await response.json();
+      const data = await fetchAppointments(token);
       setAppointments(data);
     } catch (err) {
       console.error("Failed to load appointments:", err);
@@ -79,13 +72,8 @@ export default function Payments() {
 
   const handleDelete = async (id) => {
     try {
-      const response = await fetch(`/api/payments/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await deletePayment(token, id);
 
-      if (!response.ok) throw new Error("Failed to delete payment");
-      
       setPayments(payments.filter(p => p.id !== id));
       setDeleteConfirm(null);
       setError("");
