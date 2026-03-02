@@ -1,12 +1,17 @@
 .navbar-sidebar {
   width: 220px;
   height: 100vh;
-  background-color: #b8935d;
-  background-image: url('/background.png');
-  background-size: cover, cover;
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-attachment: fixed, fixed;
+
+  /* фон сайдбара */
+  background-color: #005067;
+
+  /* убираем картинку-фон */
+  background-image: none;
+  background-size: initial;
+  background-position: initial;
+  background-repeat: initial;
+  background-attachment: initial;
+
   border-right: 1px solid rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
@@ -134,7 +139,7 @@
   color: #ac9186;
   border-left: 4px solid #ac9186;
   padding-left: 12px;
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 0 12px rgba(0, 0,  0, 0.05);
   font-weight: 600;
 }
 

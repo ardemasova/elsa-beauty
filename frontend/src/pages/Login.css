@@ -3,21 +3,33 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #ac9186 0%, #f1d0bf 100%);
+
+  /* фон всей страницы */
+  background-image: url("/background.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
   padding: 20px;
   font-family: inherit;
 }
 
 .login-card {
-  background: white;
-    background-image: 
-    url('/background.png');
+  /* фон панели */
+  background-color: #005067;
+
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   padding: 60px 40px;
   width: 100%;
   max-width: 420px;
   text-align: center;
+}
+
+/* Принудительно делаем весь текст внутри карточки белым */
+.login-card,
+.login-card * {
+  color: #ffffff !important;
 }
 
 /* Logo */
@@ -37,24 +49,21 @@
 .login-card h1 {
   font-size: 14px;
   font-weight: 700;
-  color: #373a3e;
   margin: 0 0 8px;
 }
 
 .login-subtitle {
   font-size: 14px;
-  color: #6b7280;
   margin: 0 0 30px;
   font-weight: 500;
 }
 
 /* Error Message */
 .error-message {
-  background-color: #fcfafa;
-  color: #991b1b;
+  background-color: rgba(255, 255, 255, 0.12);
   padding: 12px 16px;
   border-radius: 8px;
-  border-left: 4px solid #dc2626;
+  border-left: 4px solid rgba(255, 255, 255, 0.6);
   margin-bottom: 20px;
   font-size: 14px;
   font-weight: 500;
@@ -76,39 +85,47 @@ form {
   display: block;
   font-weight: 600;
   font-size: 14px;
-  color: #374151;
   margin-bottom: 8px;
 }
 
 .form-group input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 14px;
   font-family: inherit;
   transition: all 0.3s;
   box-sizing: border-box;
+
+  /* цвет вводимого пользователем текста */
+  color: #005067 !important;
+
+  background-color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.form-group input::placeholder {
+  color: rgba(0, 80, 103, 0.65);
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #c4a57b;
-  box-shadow: 0 0 0 3px rgba(196, 165, 123, 0.1);
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
 }
 
 .form-group input:disabled {
-  background-color: #f3f4f6;
-  color: #9ca3af;
+  background-color: rgba(255, 255, 255, 0.75);
+  color: rgba(0, 80, 103, 0.55) !important;
   cursor: not-allowed;
 }
 
 /* Login Button */
 .login-btn {
   padding: 12px 24px;
-  background-color: #ac9186;
-  color: white;
-  border: none;
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 8px;
   font-weight: 600;
   font-size: 15px;
@@ -118,8 +135,8 @@ form {
 }
 
 .login-btn:hover:not(:disabled) {
-  background-color: #f1d0bf;
-  box-shadow: 0 6px 16px rgba(196, 165, 123, 0.3);
+  background-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
   transform: translateY(-2px);
 }
 
@@ -135,7 +152,6 @@ form {
 /* Footer */
 .login-footer {
   font-size: 12px;
-  color: #36383b;
   margin: 0;
 }
 
