@@ -14,7 +14,7 @@ import CreateAppointmentModal from "./components/CreateAppointmentModal";
 import * as XLSX from "xlsx";
 
 import "./Dashboard.css";
-import "./appointments.css";
+import "./Appointments.css";
 
 export default function Appointments() {
   const token = localStorage.getItem("token");
@@ -542,7 +542,7 @@ export default function Appointments() {
                     <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
             + New Appointment
           </button>
-          
+
           <button
             className="export-btn"
             type="button"
