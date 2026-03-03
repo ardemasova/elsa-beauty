@@ -1,168 +1,115 @@
 import { useState, useEffect } from "react";
 import { fetchUsers, createUser, updateUser, deleteUser } from "../api/api";
-import "./Appointments.css"; // Используем общие стили
+import * as XLSX from "xlsx";
+import "./appointments.css";
 
 export default function Users() {
+  const token = localStorage.getItem("token");
+
   const [users, setUsers] = useState([]);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("master");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const token = localStorage.getItem("token");
-  const [password, setPassword] = useState("");
 
-  // Состояние для редактирования
-  const [editingId, setEditingId] = useState(null);
-  const [editEmail, setEditEmail] = useState("");
-  const [editRole, setEditRole] = useState("master");
-  const [editPassword, setEditPassword] = useState("");
+  // Create modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Состояние для подтверждения удаления
+  // Edit modal
+  const [editingUser, setEditingUser] = useState(null);
+
+  // Delete confirm
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   const loadUsers = async () => {
     try {
       const data = await fetchUsers(token);
-      setUsers(data);
+      setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to load users");
     }
   };
 
   useEffect(() => {
-    if (token) {
-      loadUsers();
-    }
+    if (!token) return;
+    loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  const handleAdd = async (e) => {
-    e.preventDefault();
+  const handleCreate = async (payload) => {
     setError("");
     setLoading(true);
-
     try {
-      await createUser(token, { email, password, role });
-      setEmail("");
-      setPassword("");
-      setRole("master");
-      loadUsers();
+      await createUser(token, payload);
+      setShowCreateModal(false);
+      await loadUsers();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to create user");
     } finally {
       setLoading(false);
     }
   };
 
-  // Открыть форму редактирования
-  const handleEditClick = (user) => {
-    setEditingId(user.id);
-    setEditEmail(user.email);
-    setEditRole(user.role);
-    setEditPassword("");
-  };
-
-  // Сохранить изменения
-  const handleSaveEdit = async (e) => {
-    e.preventDefault();
+  const handleUpdate = async (id, payload) => {
     setError("");
     setLoading(true);
-
     try {
-      const updateData = {
-        email: editEmail,
-        role: editRole,
-      };
-
-      // Если пароль не пустой, добавляем его
-      if (editPassword) {
-        updateData.password = editPassword;
-      }
-
-      await updateUser(token, editingId, updateData);
-
-      setEditingId(null);
-      setEditEmail("");
-      setEditRole("master");
-      setEditPassword("");
-
-      loadUsers();
+      await updateUser(token, id, payload);
+      setEditingUser(null);
+      await loadUsers();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to update user");
     } finally {
       setLoading(false);
     }
   };
 
-  // Отменить редактирование
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditEmail("");
-    setEditRole("master");
-    setEditPassword("");
-  };
-
-  // Открыть диалог подтверждения удаления
-  const handleDeleteClick = (id) => {
-    setDeleteConfirmId(id);
-  };
-
-  // Подтвердить удаление
   const handleConfirmDelete = async () => {
     setError("");
     setLoading(true);
-
     try {
       await deleteUser(token, deleteConfirmId);
       setDeleteConfirmId(null);
-      loadUsers();
+      await loadUsers();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to delete user");
     } finally {
       setLoading(false);
     }
   };
 
-  // Отменить удаление
-  const handleCancelDelete = () => {
-    setDeleteConfirmId(null);
+  // ======= Excel export =======
+  const handleExportExcel = () => {
+    const rows = users.map((u) => ({
+      ID: u.id,
+      Email: u.email,
+      Role: u.role,
+      Created: u.created_at ? new Date(u.created_at).toISOString() : "",
+    }));
+
+    const fileName = `users_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Users");
+    XLSX.writeFile(wb, fileName);
   };
 
   return (
     <div className="container">
-      <h2>Users</h2>
-      {error && <p style={{ color: "#dc2626", fontWeight: "500" }}>{error}</p>}
+      <div className="appointments-header-row">
+        <h2>Users</h2>
+
+        <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
+          + New User
+        </button>
+
+        <button className="export-btn" type="button" onClick={handleExportExcel} disabled={loading}>
+          Export to Excel
+        </button>
+      </div>
+
+      {error && <p className="appointments-error-message">{error}</p>}
 
       <div className="card">
-        <form onSubmit={handleAdd}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            disabled={loading}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
-          <select 
-            value={role} 
-            onChange={e => setRole(e.target.value)}
-            disabled={loading}
-          >
-            <option value="master">Master</option>
-            <option value="admin">Admin</option>
-          </select>
-          <button type="submit" disabled={loading}>
-            {loading ? "Adding..." : "Add User"}
-          </button>
-        </form>
-
         <table>
           <thead>
             <tr>
@@ -171,35 +118,35 @@ export default function Users() {
               <th>Actions</th>
             </tr>
           </thead>
+
           <tbody>
             {users.length > 0 ? (
-              users.map(u => (
+              users.map((u) => (
                 <tr key={u.id}>
                   <td>{u.email}</td>
                   <td>
-                    <span style={{
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      backgroundColor: u.role === "admin" ? "#fecaca" : "#dbeafe",
-                      color: u.role === "admin" ? "#991b1b" : "#1e40af",
-                      textTransform: "capitalize",
-                    }}>
+                    <span
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        fontSize: "12px",
+                        fontWeight: 800,
+                        backgroundColor: u.role === "admin" ? "#fecaca" : "#dbeafe",
+                        color: u.role === "admin" ? "#991b1b" : "#1e40af",
+                        textTransform: "capitalize",
+                      }}
+                    >
                       {u.role}
                     </span>
                   </td>
                   <td className="actions">
-                    <button 
-                      className="secondary"
-                      onClick={() => handleEditClick(u)}
-                      disabled={loading}
-                    >
+                    <button type="button" className="secondary" onClick={() => setEditingUser(u)} disabled={loading}>
                       Edit
                     </button>
-                    <button 
+                    <button
+                      type="button"
                       className="danger"
-                      onClick={() => handleDeleteClick(u.id)}
+                      onClick={() => setDeleteConfirmId(u.id)}
                       disabled={loading}
                     >
                       Delete
@@ -218,83 +165,137 @@ export default function Users() {
         </table>
       </div>
 
-      {/* Модальное окно редактирования */}
-      {editingId && (
-        <div className="modal-overlay" onClick={handleCancelEdit}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h3>Edit User</h3>
-            <form onSubmit={handleSaveEdit}>
-              <input
-                type="email"
-                placeholder="Email"
-                value={editEmail}
-                onChange={e => setEditEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-
-              <input
-                type="password"
-                placeholder="Password (leave empty to keep current)"
-                value={editPassword}
-                onChange={e => setEditPassword(e.target.value)}
-                disabled={loading}
-              />
-
-              <select
-                value={editRole}
-                onChange={e => setEditRole(e.target.value)}
-                required
-                disabled={loading}
-              >
-                <option value="master">Master</option>
-                <option value="admin">Admin</option>
-              </select>
-
-              <div className="modal-actions">
-                <button type="submit" disabled={loading}>
-                  {loading ? "Saving..." : "Save"}
-                </button>
-                <button 
-                  type="button" 
-                  className="secondary"
-                  onClick={handleCancelEdit}
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Create */}
+      {showCreateModal && (
+        <UserModal
+          title="New User"
+          loading={loading}
+          initialValues={{ email: "", password: "", role: "master" }}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={(values) => handleCreate(values)}
+          submitLabel="Create"
+          passwordHelp=""
+        />
       )}
 
-      {/* Модальное окно подтверждения удаления */}
+      {/* Edit */}
+      {editingUser && (
+        <UserModal
+          title="Edit User"
+          loading={loading}
+          initialValues={{
+            email: editingUser.email || "",
+            password: "",
+            role: editingUser.role || "master",
+          }}
+          onClose={() => setEditingUser(null)}
+          onSubmit={(values) => {
+            const updateData = {
+              email: values.email,
+              role: values.role,
+            };
+            if (values.password) updateData.password = values.password; // optional
+            return handleUpdate(editingUser.id, updateData);
+          }}
+          submitLabel="Save"
+          passwordHelp="Leave empty to keep current password"
+        />
+      )}
+
+      {/* Delete confirm */}
       {deleteConfirmId && (
-        <div className="modal-overlay" onClick={handleCancelDelete}>
-          <div className="modal-content modal-confirm" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setDeleteConfirmId(null)}>
+          <div className="modal-content modal-confirm" onClick={(e) => e.stopPropagation()}>
             <h3>Delete User</h3>
             <p>Are you sure you want to delete this user? This action cannot be undone.</p>
             <div className="modal-actions">
-              <button 
-                className="danger"
-                onClick={handleConfirmDelete}
-                disabled={loading}
-              >
+              <button className="danger" onClick={handleConfirmDelete} disabled={loading}>
                 {loading ? "Deleting..." : "Delete"}
               </button>
-              <button 
-                type="button" 
-                className="secondary"
-                onClick={handleCancelDelete}
-                disabled={loading}
-              >
+              <button type="button" className="secondary" onClick={() => setDeleteConfirmId(null)} disabled={loading}>
                 Cancel
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLabel, passwordHelp }) {
+  const [email, setEmail] = useState(initialValues.email);
+  const [password, setPassword] = useState(initialValues.password);
+  const [role, setRole] = useState(initialValues.role);
+
+  useEffect(() => {
+    setEmail(initialValues.email);
+    setPassword(initialValues.password);
+    setRole(initialValues.role);
+  }, [initialValues]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit({
+      email,
+      password,
+      role,
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Email *</label>
+            <input
+              type="email"
+              placeholder="e.g., user@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Password {title.startsWith("Edit") ? "" : "*"}</label>
+            <input
+              type="password"
+              placeholder={passwordHelp ? `Password (${passwordHelp})` : "Password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required={!title.startsWith("Edit")}
+              disabled={loading}
+            />
+            {passwordHelp ? (
+              <small className="muted" style={{ marginTop: "4px", display: "block" }}>
+                {passwordHelp}
+              </small>
+            ) : null}
+          </div>
+
+          <div className="form-group">
+            <label>Role *</label>
+            <select value={role} onChange={(e) => setRole(e.target.value)} required disabled={loading}>
+              <option value="master">Master</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          <div className="modal-actions">
+            <button type="submit" disabled={loading}>
+              {loading ? "Saving..." : submitLabel}
+            </button>
+            <button type="button" className="secondary" onClick={onClose} disabled={loading}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

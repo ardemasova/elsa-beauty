@@ -19,6 +19,7 @@ import "./App.css";
 
 function App() {
   const [isAuth, setIsAuth] = useState(!!localStorage.getItem("token"));
+  const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
 
   useEffect(() => {
     const handleTokenChange = () => {
@@ -31,8 +32,11 @@ function App() {
 
   return (
     <Router>
-      {isAuth && <Navbar />}
-      <main className={isAuth ? "main-with-navbar" : ""}>
+      {isAuth && (
+        <Navbar onCollapsedChange={(collapsed) => setIsNavbarCollapsed(collapsed)} />
+      )}
+
+      <main className={`${isAuth ? "main-with-navbar" : ""} ${isAuth && isNavbarCollapsed ? "navbar-collapsed" : ""}`}>
         <Routes>
           <Route path="/login" element={<Login />} />
 
@@ -117,7 +121,7 @@ function App() {
             }
           />
 
-            <Route
+          <Route
             path="/reports/masters"
             element={
               <ProtectedRoute>
@@ -125,7 +129,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/ai-assistant"
             element={

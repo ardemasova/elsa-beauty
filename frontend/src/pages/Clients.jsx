@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
-import { fetchClientsByType, createClient, updateClient, deleteClient } from "../api/api";
+import {
+  fetchClientsByType,
+  createClient,
+  updateClient,
+  deleteClient,
+} from "../api/api";
+import * as XLSX from "xlsx";
 import "./Clients.css";
-
 
 export default function Clients() {
   const [partners, setPartners] = useState([]);
@@ -29,7 +34,7 @@ export default function Clients() {
     try {
       const type = activeTab === "all" ? null : activeTab;
       const data = await fetchClientsByType(token, type);
-      setPartners(data);
+      setPartners(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message);
     }
@@ -37,11 +42,12 @@ export default function Clients() {
 
   useEffect(() => {
     loadPartners();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -141,22 +147,50 @@ export default function Clients() {
     });
   };
 
-  const getTypeBadge = (type) => {
-    return type === 'customer' 
-      ? '<span class="badge badge-blue">Customer</span>'
-      : '<span class="badge badge-green">Vendor</span>';
+  // ======= Excel export (current tab data only) =======
+  const handleExportExcel = () => {
+    const rows = partners.map((p) => ({
+      ID: p.id,
+      Name: p.name,
+      Type: p.type,
+      Phone: p.phone || "",
+      Email: p.email || "",
+      Address: p.address || "",
+      "VAT Number": p.vat_number || "",
+      "Bank Name": p.bank_name || "",
+      "Bank Account": p.bank_account || "",
+      "Bank Code": p.bank_code || "",
+      Created: p.created_at ? formatDate(p.created_at) : "",
+    }));
+
+    const fileName = `partners_${activeTab}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Partners");
+    XLSX.writeFile(wb, fileName);
   };
 
   return (
     <div className="partners-container">
       <div className="partners-header">
         <h1>Business Partners</h1>
-        <button
-          className="btn-primary"
-          onClick={() => setShowModal(true)}
-        >
-          + New Partner
-        </button>
+
+        <div className="partners-header-actions">
+          <button className="btn-primary" onClick={() => setShowModal(true)}>
+            + New Partner
+          </button>
+
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={handleExportExcel}
+            disabled={loading}
+            title="Exports current tab partners"
+          >
+            Export to Excel
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-message">{error}</div>}
@@ -323,11 +357,7 @@ export default function Clients() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={loading}
-                >
+                <button type="submit" className="btn-primary" disabled={loading}>
                   {loading ? "Saving..." : "Save Partner"}
                 </button>
               </div>
@@ -343,17 +373,10 @@ export default function Clients() {
             <h3>Delete Partner?</h3>
             <p>This action cannot be undone.</p>
             <div className="confirm-actions">
-              <button
-                className="btn-secondary"
-                onClick={() => setDeleteConfirmId(null)}
-              >
+              <button className="btn-secondary" onClick={() => setDeleteConfirmId(null)}>
                 Cancel
               </button>
-              <button
-                className="btn-danger"
-                onClick={handleConfirmDelete}
-                disabled={loading}
-              >
+              <button className="btn-danger" onClick={handleConfirmDelete} disabled={loading}>
                 {loading ? "Deleting..." : "Delete"}
               </button>
             </div>
@@ -377,17 +400,19 @@ export default function Clients() {
               </tr>
             </thead>
             <tbody>
-              {partners.map(partner => (
+              {partners.map((partner) => (
                 <tr key={partner.id}>
                   <td className="cell-name">{partner.name}</td>
                   <td className="cell-type">
-                    <span className={`badge badge-${partner.type === 'customer' ? 'blue' : 'green'}`}>
-                      {partner.type === 'customer' ? '👥 Customer' : '🏭 Vendor'}
+                    <span
+                      className={`badge badge-${partner.type === "customer" ? "blue" : "green"}`}
+                    >
+                      {partner.type === "customer" ? "👥 Customer" : "🏭 Vendor"}
                     </span>
                   </td>
-                  <td>{partner.phone || '-'}</td>
-                  <td>{partner.email || '-'}</td>
-                  <td>{partner.vat_number || '-'}</td>
+                  <td>{partner.phone || "-"}</td>
+                  <td>{partner.email || "-"}</td>
+                  <td>{partner.vat_number || "-"}</td>
                   <td className="cell-date">{formatDate(partner.created_at)}</td>
                   <td className="cell-actions">
                     <button
@@ -413,7 +438,7 @@ export default function Clients() {
           </table>
         ) : (
           <div className="empty-state">
-            <p>No {activeTab === 'all' ? 'partners' : `${activeTab}s`} yet</p>
+            <p>No {activeTab === "all" ? "partners" : `${activeTab}s`} yet</p>
             <button className="btn-primary" onClick={() => setShowModal(true)}>
               Create First Partner
             </button>

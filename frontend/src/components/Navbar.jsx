@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 import logo from "../assets/logo.png";
@@ -15,10 +15,14 @@ import paymentsIcon from "../assets/icons/payments.svg";
 import SettingsIcon from "../assets/icons/settings.svg";
 import AIIcon from "../assets/icons/AI.svg";
 
-export default function Navbar() {
+export default function Navbar({ onCollapsedChange }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    onCollapsedChange?.(isCollapsed);
+  }, [isCollapsed, onCollapsedChange]);
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -57,34 +61,27 @@ export default function Navbar() {
     },
     {
       title: "System",
-      items: [
-        { path: "/settings", label: "Settings", icon: SettingsIcon },
-      ],
+      items: [{ path: "/settings", label: "Settings", icon: SettingsIcon }],
     },
   ];
 
   return (
     <aside className={`navbar-sidebar ${isCollapsed ? "collapsed" : ""}`}>
-      {/* Logo */}
       <div className="navbar-logo">
         <img src={logo} alt="ELSA Beauty" className="logo-image" />
         <button
           className="toggle-btn"
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={() => setIsCollapsed((v) => !v)}
           title={isCollapsed ? "Expand" : "Collapse"}
         >
           <img src={toggleIcon} alt="Toggle" className="toggle-icon" />
         </button>
       </div>
 
-      {/* Navigation Menu */}
       <nav className="navbar-menu">
         {navSections.map((section) => (
           <div className="nav-section" key={section.title}>
-            {/* Заголовок секции (не кликабельный) */}
-            {!isCollapsed && (
-              <div className="nav-section-title">{section.title}</div>
-            )}
+            {!isCollapsed && <div className="nav-section-title">{section.title}</div>}
 
             {section.items.map((item) => (
               <Link
@@ -93,13 +90,7 @@ export default function Navbar() {
                 className={`nav-item ${isActive(item.path) ? "active" : ""}`}
                 title={isCollapsed ? item.label : ""}
               >
-                {typeof item.icon === "string" && item.icon.length <= 3 ? (
-                  <span className="nav-icon-emoji" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                ) : (
-                  <img src={item.icon} alt={item.label} className="nav-icon" />
-                )}
+                <img src={item.icon} alt={item.label} className="nav-icon" />
                 <span>{item.label}</span>
               </Link>
             ))}
@@ -107,12 +98,7 @@ export default function Navbar() {
         ))}
       </nav>
 
-      {/* Logout Button */}
-      <button
-        className="navbar-logout"
-        onClick={logout}
-        title={isCollapsed ? "Logout" : ""}
-      >
+      <button className="navbar-logout" onClick={logout} title={isCollapsed ? "Logout" : ""}>
         <img src={logoutIcon} alt="Logout" className="nav-icon" />
         <span>Logout</span>
       </button>

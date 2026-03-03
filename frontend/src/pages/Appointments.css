@@ -1,145 +1,202 @@
+:root {
+  /* palette (from navbar.css) */
+  --nav-bg: #005067;
+  --nav-accent: #03839a;    /* teal */
+  --nav-accent-2: #b96c86;  /* pink */
+  --nav-text: #f9f9f9;
+  --nav-text-soft: #feb9c7;
+
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --muted: #6b7280;
+
+  --page-bg: #fafafa;
+}
+
+/* =========================
+   Page section (table area)
+   ========================= */
 .container {
   padding: 40px;
   max-width: 1400px;
   margin: 0 auto;
-  background-color: #fafafa;
+  background-color: var(--page-bg);
   min-height: 100vh;
 }
 
-.container h2 {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 30px;
-  margin-top: 0;
+/* Header row (title + action buttons) */
+.appointments-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
-/* Error Message */
-.error-message {
+/* Title (LEFT aligned + left offset ONLY for h2) */
+.appointments-header-row h2 {
+  margin: 0;
+  text-align: left;
+
+  /* add space before the title */
+  padding-left: 16px;
+
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--nav-bg);
+}
+
+/* Push action buttons to the right, keep them on one line */
+.appointments-header-row .add-appointment-btn,
+.appointments-header-row .export-btn {
+  margin-left: auto;
+}
+
+/* Ensure both buttons stay together on the right */
+.appointments-header-row .add-appointment-btn + .export-btn {
+  margin-left: 12px;
+}
+
+/* New Appointment button (in header row) */
+.appointments-header-row .add-appointment-btn {
+  padding: 10px 16px;
+  border: 1px solid rgba(185, 108, 134, 0.55);
+  border-radius: 8px;
+  background: var(--nav-accent-2);
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.appointments-header-row .add-appointment-btn:hover:not(:disabled) {
+  background: #a65e76;
+  box-shadow: 0 6px 16px rgba(185, 108, 134, 0.25);
+  transform: translateY(-1px);
+}
+
+.appointments-header-row .add-appointment-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Export button */
+.export-btn {
+  padding: 10px 16px;
+  border: 1px solid rgba(0, 80, 103, 0.55);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--nav-bg);
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.export-btn:hover:not(:disabled) {
+  border-color: var(--nav-accent);
+  color: var(--nav-accent);
+  background: rgba(185, 108, 134, 0.18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Error Message (renamed to avoid conflict with Dashboard.css) */
+.appointments-error-message {
   background-color: #fee2e2;
   color: #991b1b;
   padding: 16px;
   border-radius: 8px;
   border-left: 4px solid #dc2626;
-  margin-bottom: 20px;
-  font-weight: 500;
+  margin: 16px 32px;
+  font-weight: 700;
 }
 
-/* Card Container */
+/* =========================
+   Calendar background (public/background.png)
+   ========================= */
+.calendar-main-section {
+  position: relative;
+  background-image: url("/background.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+
+/* soften the image so the calendar stays readable */
+.calendar-main-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
+.calendar-main-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* =========================
+   Table card
+   ========================= */
 .card {
-  background: white;
+  background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   padding: 30px;
   margin-bottom: 30px;
+
+  /* Control border ourselves to avoid double border */
+  border: 1px solid rgba(0, 80, 103, 0.20);
+
+  /* subtle accent line */
+  border-top: 4px solid rgba(3, 131, 154, 0.25);
+
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-/* Form Styles */
-.card form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-  margin-bottom: 40px;
-  padding-bottom: 30px;
-  border-bottom: 1px solid #e5e7eb;
+.card:hover {
+  /* single "contour" on hover (no outline => no double border) */
+  border-color: rgba(3, 131, 154, 0.55);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
 }
 
-.card input,
-.card select,
-.card textarea {
-  padding: 12px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  font-family: inherit;
-  transition: all 0.3s;
-  background-color: white;
-  color: #1f2937;
-}
-
-.card input:focus,
-.card select:focus,
-.card textarea:focus {
-  outline: none;
-  border-color: #ac9186;
-  box-shadow: 0 0 0 3px rgba(172, 145, 134, 0.1);
-}
-
-.card input:disabled,
-.card select:disabled,
-.card textarea:disabled {
-  background-color: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
-}
-
-.card textarea {
-  grid-column: 1 / -1;
-  resize: vertical;
-  min-height: 100px;
-}
-
-/* Button Styles */
-.card button[type="submit"],
-.modal-actions button {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.card button[type="submit"] {
-  background-color: #ac9186;
-  color: white;
-  grid-column: 1 / -1;
-}
-
-.card button[type="submit"]:hover:not(:disabled) {
-  background-color: #8f7365;
-  box-shadow: 0 4px 12px rgba(172, 145, 134, 0.3);
-  transform: translateY(-2px);
-}
-
-.card button[type="submit"]:disabled {
-  background-color: #d1d5db;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-/* Table Styles */
+/* Table */
 .card table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 20px;
 }
 
 .card thead {
-  background-color: #f3f4f6;
-  border-bottom: 2px solid #e5e7eb;
+  background-color: rgba(0, 80, 103, 0.06);
+  border-bottom: 2px solid var(--border);
 }
 
 .card th {
   padding: 16px;
   text-align: left;
-  font-weight: 600;
+  font-weight: 800;
   font-size: 13px;
-  color: #374151;
+  color: #0f172a;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .card td {
   padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
-  color: #1f2937;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
   font-size: 14px;
 }
 
 .card tbody tr:hover {
-  background-color: #f9fafb;
+  background-color: rgba(3, 131, 154, 0.06);
   transition: background-color 0.2s;
 }
 
@@ -147,10 +204,11 @@
   border-bottom: none;
 }
 
-/* Actions Column */
+/* Actions column buttons */
 .actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .actions button {
@@ -159,30 +217,30 @@
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s;
+  font-weight: 800;
+  transition: all 0.2s;
 }
 
 .actions button.secondary {
-  background-color: #e0e7ff;
-  color: #3730a3;
+  background-color: rgba(3, 131, 154, 0.14);
+  color: var(--nav-accent);
 }
 
 .actions button.secondary:hover:not(:disabled) {
-  background-color: #c7d2fe;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(55, 48, 163, 0.15);
+  background-color: rgba(3, 131, 154, 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(3, 131, 154, 0.18);
 }
 
 .actions button.danger {
-  background-color: #fee2e2;
-  color: #991b1b;
+  background-color: rgba(185, 108, 134, 0.14);
+  color: var(--nav-accent-2);
 }
 
 .actions button.danger:hover:not(:disabled) {
-  background-color: #fecaca;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
+  background-color: rgba(185, 108, 134, 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(185, 108, 134, 0.18);
 }
 
 .actions button:disabled {
@@ -190,33 +248,9 @@
   cursor: not-allowed;
 }
 
-/* Status Badge */
-.status-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: capitalize;
-  letter-spacing: 0.3px;
-}
-
-.status-planned {
-  background-color: #dbeafe;
-  color: #1e40af;
-}
-
-.status-completed {
-  background-color: #dcfce7;
-  color: #166534;
-}
-
-.status-cancelled {
-  background-color: #fee2e2;
-  color: #991b1b;
-}
-
-/* Modal Overlay */
+/* =========================
+   Modal styles (edit/delete)
+   ========================= */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -240,14 +274,15 @@
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+
+  border-top: 4px solid rgba(3, 131, 154, 0.25);
 }
 
 .modal-content h3 {
   font-size: 20px;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 20px;
-  margin-top: 0;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 20px 0;
 }
 
 .modal-content form {
@@ -264,15 +299,15 @@
   border-radius: 8px;
   font-size: 14px;
   font-family: inherit;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
 .modal-content input:focus,
 .modal-content select:focus,
 .modal-content textarea:focus {
   outline: none;
-  border-color: #ac9186;
-  box-shadow: 0 0 0 3px rgba(172, 145, 134, 0.1);
+  border-color: var(--nav-accent);
+  box-shadow: 0 0 0 3px rgba(3, 131, 154, 0.12);
 }
 
 .modal-content input:disabled,
@@ -294,21 +329,21 @@
   padding: 12px 20px;
   border: none;
   border-radius: 8px;
-  font-weight: 600;
+  font-weight: 800;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
 .modal-actions button:first-child {
-  background-color: #ac9186;
+  background-color: var(--nav-bg);
   color: white;
 }
 
 .modal-actions button:first-child:hover:not(:disabled) {
-  background-color: #8f7365;
-  box-shadow: 0 4px 12px rgba(172, 145, 134, 0.3);
-  transform: translateY(-2px);
+  background-color: #003f52;
+  box-shadow: 0 4px 12px rgba(0, 80, 103, 0.25);
+  transform: translateY(-1px);
 }
 
 .modal-actions button.secondary {
@@ -318,18 +353,18 @@
 
 .modal-actions button.secondary:hover:not(:disabled) {
   background-color: #d1d5db;
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .modal-actions button.danger {
-  background-color: #dc2626;
+  background-color: var(--nav-accent-2);
   color: white;
 }
 
 .modal-actions button.danger:hover:not(:disabled) {
-  background-color: #b91c1c;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-  transform: translateY(-2px);
+  background-color: #a65e76;
+  box-shadow: 0 4px 12px rgba(185, 108, 134, 0.25);
+  transform: translateY(-1px);
 }
 
 .modal-actions button:disabled {
@@ -337,31 +372,116 @@
   cursor: not-allowed;
 }
 
-/* Modal Confirm */
+/* Modal Confirm text */
 .modal-confirm p {
-  color: #6b7280;
+  color: var(--muted);
   font-size: 14px;
   line-height: 1.6;
   margin: 0 0 20px 0;
 }
 
-/* Responsive */
+/* =========================
+   Topbar color overrides
+   (classes come from Dashboard.css)
+   ========================= */
+
+.date-range {
+  color: var(--nav-bg);
+  font-weight: 700;
+}
+
+.nav-btn {
+  border: 1px solid rgba(0, 80, 103, 0.55);
+  background: #fff;
+  color: var(--nav-bg);
+}
+
+.nav-btn:hover {
+  border-color: var(--nav-accent);
+  color: var(--nav-accent);
+  background: rgba(3, 131, 154, 0.08);
+}
+
+.nav-btn.today-btn {
+  border: 1px solid rgba(185, 108, 134, 0.6);
+  color: var(--nav-accent-2);
+  background: #fff;
+}
+
+.nav-btn.today-btn:hover {
+  background: rgba(185, 108, 134, 0.12);
+  border-color: var(--nav-accent-2);
+  color: var(--nav-accent-2);
+}
+
+.period-selector {
+  background: rgba(0, 80, 103, 0.06);
+}
+
+.period-selector button {
+  color: var(--nav-bg);
+  font-weight: 800;
+}
+
+.period-selector button:hover {
+  background: rgba(3, 131, 154, 0.10);
+  color: var(--nav-accent);
+}
+
+.period-selector button.active {
+  background: var(--nav-accent);
+  color: #fff;
+}
+
+.filter-toggle {
+  border: 1px solid rgba(0, 80, 103, 0.25);
+  background: rgba(0, 80, 103, 0.06);
+  color: var(--nav-bg);
+  font-weight: 800;
+}
+
+.filter-toggle:hover {
+  border-color: var(--nav-accent);
+  color: var(--nav-accent);
+  background: rgba(3, 131, 154, 0.10);
+}
+
+.filter-dropdown {
+  border: 1px solid rgba(0, 80, 103, 0.18);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+.filter-option:hover {
+  background: rgba(3, 131, 154, 0.06);
+}
+
+.filter-option input[type="checkbox"] {
+  accent-color: var(--nav-accent);
+}
+
+/* topbar new appointment button (if you ever use it there) */
+.dashboard-topbar .add-appointment-btn {
+  background: var(--nav-accent-2);
+  color: #fff;
+  font-weight: 900;
+}
+
+.dashboard-topbar .add-appointment-btn:hover {
+  background: #a65e76;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(185, 108, 134, 0.25);
+}
+
+/* =========================
+   Responsive
+   ========================= */
 @media (max-width: 768px) {
   .container {
     padding: 20px;
   }
 
-  .container h2 {
-    font-size: 24px;
-    margin-bottom: 20px;
-  }
-
   .card {
     padding: 20px;
-  }
-
-  .card form {
-    grid-template-columns: 1fr;
   }
 
   .card table {
@@ -373,13 +493,91 @@
     padding: 12px 8px;
   }
 
-  .actions button {
-    padding: 6px 12px;
-    font-size: 12px;
-  }
-
   .modal-content {
     padding: 20px;
     max-width: 90%;
   }
+
+  .appointments-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appointments-header-row h2 {
+    text-align: left;
+    padding-left: 0;
+  }
+
+  .appointments-header-row .add-appointment-btn,
+  .appointments-header-row .export-btn {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .appointments-header-row .add-appointment-btn + .export-btn {
+    margin-left: 0;
+  }
+
+  .fc-view-harness.fc-view-harness-passive,
+.fc-view-harness.fc-view-harness-active {
+  position: relative;
+  background-image: url("/background.png") !important;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  border-radius: 12px;
+  overflow: hidden;
+
+  /* важно: чтобы фон было видно */
+  min-height: 420px;
+}
+
+/* осветляющий слой (чтобы текст читался) */
+.fc-view-harness.fc-view-harness-passive::before,
+.fc-view-harness.fc-view-harness-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* поднять реальный календарь над ::before */
+.fc-view-harness.fc-view-harness-passive > *,
+.fc-view-harness.fc-view-harness-active > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* убираем белые фоны у внутренних контейнеров */
+.fc-view-harness.fc-view-harness-passive .fc-scroller,
+.fc-view-harness.fc-view-harness-passive .fc-view,
+.fc-view-harness.fc-view-harness-passive .fc-scrollgrid,
+.fc-view-harness.fc-view-harness-passive .fc-scrollgrid-section,
+.fc-view-harness.fc-view-harness-passive .fc-scrollgrid-section table,
+.fc-view-harness.fc-view-harness-passive .fc-timegrid-body,
+.fc-view-harness.fc-view-harness-passive .fc-daygrid-body,
+.fc-view-harness.fc-view-harness-passive .fc-timegrid-slots,
+.fc-view-harness.fc-view-harness-passive .fc-timegrid-col-bg,
+.fc-view-harness.fc-view-harness-passive .fc-daygrid-day-frame,
+.fc-view-harness.fc-view-harness-passive .fc-daygrid-day,
+.fc-view-harness.fc-view-harness-passive .fc-timegrid-col,
+.fc-view-harness.fc-view-harness-passive .fc-timegrid-col-frame,
+.fc-view-harness.fc-view-harness-active .fc-scroller,
+.fc-view-harness.fc-view-harness-active .fc-view,
+.fc-view-harness.fc-view-harness-active .fc-scrollgrid,
+.fc-view-harness.fc-view-harness-active .fc-scrollgrid-section,
+.fc-view-harness.fc-view-harness-active .fc-scrollgrid-section table,
+.fc-view-harness.fc-view-harness-active .fc-timegrid-body,
+.fc-view-harness.fc-view-harness-active .fc-daygrid-body,
+.fc-view-harness.fc-view-harness-active .fc-timegrid-slots,
+.fc-view-harness.fc-view-harness-active .fc-timegrid-col-bg,
+.fc-view-harness.fc-view-harness-active .fc-daygrid-day-frame,
+.fc-view-harness.fc-view-harness-active .fc-daygrid-day,
+.fc-view-harness.fc-view-harness-active .fc-timegrid-col,
+.fc-view-harness.fc-view-harness-active .fc-timegrid-col-frame {
+  background: transparent !important;
+}
+
 }

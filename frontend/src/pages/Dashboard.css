@@ -190,12 +190,12 @@
   user-select: none;
 }
 
-/* Add Appointment Button */
+/* Add Appointment Button (BACK TO #b96c86) */
 .add-appointment-btn {
   padding: 10px 20px;
   border: none;
   border-radius: 6px;
-  background: #ac9186;
+  background: #b96c86;
   color: white;
   cursor: pointer;
   font-weight: 600;
@@ -208,9 +208,9 @@
 }
 
 .add-appointment-btn:hover {
-  background: #f1d0bf;
-  color: #ac9186;
-  box-shadow: 0 4px 12px rgba(172, 145, 134, 0.3);
+  background: #a65e76;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(185, 108, 134, 0.3);
 }
 
 /* KPI Grid */
@@ -225,7 +225,7 @@
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  border-left: 4px solid #ac9186;
+  border-left: 4px solid #b96c86;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: all 0.2s;
@@ -234,7 +234,7 @@
 .stats-widget:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
-  border-left-color: #8f7365;
+  border-left-color: #a65e76;
 }
 
 .stats-header {
@@ -371,7 +371,7 @@
   color: #1f2937;
 }
 
-/* Calendar Section */
+/* Calendar Section (kept for layout consistency; calendar removed in JSX) */
 .calendar-main-section {
   padding: 24px 32px;
   border-top: 1px solid #e5e7eb;
@@ -421,4 +421,181 @@
     width: 100%;
     justify-content: space-between;
   }
+}
+
+.dashboard-sections {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  padding: 24px 32px 32px;
+}
+
+.dashboard-section {
+  padding: 24px;
+}
+
+.dashboard-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dashboard-section-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Background image on the whole Revenue section card */
+.revenue-section {
+  position: relative;
+  background: url("/background.png") center / cover no-repeat !important;
+  overflow: hidden;
+}
+
+/* light overlay so chart stays readable */
+.revenue-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.revenue-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* simple bar chart */
+.revenue-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 10px;
+  align-items: end;
+  height: 220px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.revenue-bar {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  height: 100%;
+}
+
+.revenue-bar-fill {
+  align-self: end;
+  width: 100%;
+  height: 0%;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #03839a, #005067);
+  transition: height 0.25s ease;
+}
+
+.revenue-bar-label {
+  font-size: 11px;
+  color: #64748b;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* upcoming list */
+.upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upcoming-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.upcoming-item:hover {
+  border-color: rgba(3, 131, 154, 0.35);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+.upcoming-datetime {
+  font-weight: 800;
+  color: #005067;
+  margin-bottom: 4px;
+}
+
+.upcoming-title {
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.upcoming-status {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #03839a;
+  background: rgba(3, 131, 154, 0.12);
+  text-transform: capitalize;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-sections {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .revenue-chart {
+    height: 200px;
+  }
+}
+
+.dashboard-upcoming-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-upcoming-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Ensure button doesn't stretch */
+.dashboard-upcoming-header .add-appointment-btn {
+  white-space: nowrap;
+}
+
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.form-group label {
+  font-weight: 800;
+  font-size: 13px;
+  color: #0f172a;
 }

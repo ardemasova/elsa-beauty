@@ -1,111 +1,133 @@
+:root {
+  --nav-bg: #005067;
+  --nav-accent: #03839a;
+  --nav-accent-2: #b96c86;
+
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --page-bg: #fafafa;
+}
+
 .ai-assistant-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f9f7f2 0%, #fafafa 100%);
-  padding: 40px 20px;
-}
-
-/* Header */
-.ai-header {
-  background: linear-gradient(135deg, #ac9186 0%, #8f7365 100%);
-  border-radius: 16px;
+  background: var(--page-bg);
   padding: 40px;
-  margin-bottom: 40px;
-  box-shadow: 0 8px 24px rgba(172, 145, 134, 0.2);
-  color: white;
-}
-
-.ai-header-content {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
-.ai-icon {
-  font-size: 48px;
-  animation: float 3s ease-in-out infinite;
+/* Header with background.png */
+.ai-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-top: 4px solid rgba(3, 131, 154, 0.25);
+
+  /* background image */
+  background: url("/background.png") center / cover no-repeat;
+  overflow: hidden;
 }
 
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+/* light overlay for readability */
+.ai-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ai-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ai-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ai-icon-img {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .ai-title-section h1 {
-  font-size: 36px;
-  font-weight: 700;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--nav-bg);
   margin: 0;
 }
 
 .ai-subtitle {
-  font-size: 16px;
-  margin: 8px 0 0 0;
-  opacity: 0.9;
-  font-weight: 500;
+  font-size: 14px;
+  margin: 6px 0 0 0;
+  color: var(--muted);
+  font-weight: 700;
 }
 
-/* Tabs Navigation */
+/* Tabs */
 .ai-tabs {
   display: flex;
   gap: 12px;
-  margin-bottom: 32px;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border);
+  flex-wrap: wrap;
 }
 
-.ai-tab {
-  display: flex;
+/* IMPORTANT: increase specificity so it wins over any global .tab styles */
+.ai-tabs button.tab {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 24px;
-  background: white;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.3s;
 }
 
-.ai-tab:hover {
-  border-color: #ac9186;
-  color: #ac9186;
-  background: #f9f7f2;
+.ai-tabs button.tab:hover {
+  color: var(--nav-bg);
 }
 
-.ai-tab.active {
-  background: #ac9186;
-  color: white;
-  border-color: #ac9186;
-  box-shadow: 0 4px 12px rgba(172, 145, 134, 0.3);
+.ai-tabs button.tab.active {
+  color: var(--nav-accent-2);
+  border-bottom-color: var(--nav-accent-2);
 }
 
-.tab-icon {
-  font-size: 18px;
-}
-
-.tab-label {
+.ai-tabs .tab-label {
   display: none;
 }
 
 @media (min-width: 768px) {
-  .tab-label {
+  .ai-tabs .tab-label {
     display: inline;
   }
 }
 
 /* Content */
 .ai-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.25s ease-out;
 }
 
 @keyframes fadeIn {
@@ -119,39 +141,21 @@
   }
 }
 
+/* Responsive */
 @media (max-width: 768px) {
   .ai-assistant-container {
     padding: 20px;
   }
 
   .ai-header {
-    padding: 24px;
-    margin-bottom: 24px;
-  }
-
-  .ai-header-content {
-    flex-direction: column;
-    text-align: center;
-    gap: 16px;
-  }
-
-  .ai-icon {
-    font-size: 40px;
+    padding: 20px;
   }
 
   .ai-title-section h1 {
     font-size: 24px;
   }
 
-  .ai-subtitle {
-    font-size: 14px;
-  }
-
-  .ai-tabs {
-    margin-bottom: 24px;
-  }
-
-  .ai-tab {
+  .ai-tabs button.tab {
     flex: 1;
     justify-content: center;
   }

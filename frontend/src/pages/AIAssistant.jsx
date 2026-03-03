@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ReportAnalysis from "../components/ai/ReportAnalysis";
 import AdminAssistant from "../components/ai/AdminAssistant";
 import ScheduleInsights from "../components/ai/ScheduleInsights";
+import aiIcon from "../assets/icons/AIicon.png";
 import "./AIAssistant.css";
 
 export default function AIAssistant() {
@@ -14,48 +15,48 @@ export default function AIAssistant() {
     if (!token) {
       navigate("/login", { replace: true });
     }
-  }, [token]);
+  }, [token, navigate]);
 
   return (
     <div className="ai-assistant-container">
+      {/* Header with background image like other pages */}
       <div className="ai-header">
-        <div className="ai-header-content">
-          <div className="ai-icon">🤖</div>
+        <div className="ai-header-left">
+          <img className="ai-icon-img" src={aiIcon} alt="AI" />
           <div className="ai-title-section">
             <h1>AI Assistant</h1>
-            <p className="ai-subtitle">
-              Get intelligent insights about your business using AI analysis
-            </p>
+            <p className="ai-subtitle">Get intelligent insights about your business using AI analysis</p>
           </div>
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      {/* Tabs */}
       <div className="ai-tabs">
         <button
-          className={`ai-tab ${activeTab === "report-analysis" ? "active" : ""}`}
+          className={`tab ${activeTab === "report-analysis" ? "active" : ""}`}
           onClick={() => setActiveTab("report-analysis")}
+          type="button"
         >
-          <span className="tab-icon">📊</span>
-          <span className="tab-label">Report Analysis</span>
+          📊 <span className="tab-label">Report Analysis</span>
         </button>
+
         <button
-          className={`ai-tab ${activeTab === "admin-assistant" ? "active" : ""}`}
+          className={`tab ${activeTab === "admin-assistant" ? "active" : ""}`}
           onClick={() => setActiveTab("admin-assistant")}
+          type="button"
         >
-          <span className="tab-icon">💬</span>
-          <span className="tab-label">Admin Assistant</span>
+          💬 <span className="tab-label">Admin Assistant</span>
         </button>
+
         <button
-          className={`ai-tab ${activeTab === "schedule-insights" ? "active" : ""}`}
+          className={`tab ${activeTab === "schedule-insights" ? "active" : ""}`}
           onClick={() => setActiveTab("schedule-insights")}
+          type="button"
         >
-          <span className="tab-icon">📅</span>
-          <span className="tab-label">Schedule Insights</span>
+          📅 <span className="tab-label">Schedule Insights</span>
         </button>
       </div>
 
-      {/* Tab Content */}
       <div className="ai-content">
         {activeTab === "report-analysis" && <ReportAnalysis token={token} />}
         {activeTab === "admin-assistant" && <AdminAssistant token={token} />}

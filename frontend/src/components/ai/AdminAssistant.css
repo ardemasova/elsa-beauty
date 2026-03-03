@@ -1,50 +1,67 @@
+:root {
+  --nav-bg: #005067;
+  --nav-accent: #03839a;
+  --nav-accent-2: #b96c86;
+
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --muted: #6b7280;
+}
+
 .admin-assistant {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 300px);
   min-height: 600px;
-  background: white;
+
+  background: #fff;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border);
+  border-top: 4px solid rgba(3, 131, 154, 0.25);
   overflow: hidden;
 }
 
-/* Date Selector */
+/* =========================
+   Date Selector
+   ========================= */
 .date-selector {
   position: relative;
   padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 80, 103, 0.04);
 }
 
 .date-toggle {
   padding: 10px 16px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-weight: 600;
-  color: #1f2937;
+  background: #fff;
+  border: 1px solid rgba(0, 80, 103, 0.25);
+  border-radius: 10px;
+  font-weight: 900;
+  color: var(--nav-bg);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
   font-size: 14px;
 }
 
 .date-toggle:hover {
-  border-color: #ac9186;
-  background: #f9f7f2;
+  border-color: var(--nav-accent);
+  color: var(--nav-accent);
+  background: rgba(3, 131, 154, 0.08);
+  transform: translateY(-1px);
 }
 
 .date-picker-panel {
   position: absolute;
   top: 100%;
   left: 24px;
-  margin-top: 8px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  margin-top: 10px;
+
+  background: #fff;
+  border: 1px solid rgba(0, 80, 103, 0.18);
+  border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
   z-index: 10;
   min-width: 300px;
 }
@@ -58,44 +75,52 @@
 
 .date-field label {
   font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
+  font-weight: 900;
+  color: #0f172a;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .date-input {
   padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
   font-size: 14px;
   font-family: inherit;
-  color: #1f2937;
+  color: var(--text);
+  background: #fff;
 }
 
 .date-input:focus {
   outline: none;
-  border-color: #ac9186;
-  box-shadow: 0 0 0 3px rgba(172, 145, 134, 0.1);
+  border-color: var(--nav-accent);
+  box-shadow: 0 0 0 3px rgba(3, 131, 154, 0.12);
 }
 
+/* Close button (use primary pink) */
 .btn-close {
   width: 100%;
-  padding: 10px;
-  background: #ac9186;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
+  padding: 10px 12px;
+
+  background: var(--nav-accent-2) !important;
+  color: #fff !important;
+  border: 1px solid rgba(185, 108, 134, 0.55) !important;
+
+  border-radius: 10px;
+  font-weight: 900;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
-.btn-close:hover {
-  background: #8f7365;
+.btn-close:hover:not(:disabled) {
+  background: #a65e76 !important;
+  box-shadow: 0 6px 16px rgba(185, 108, 134, 0.25);
+  transform: translateY(-1px);
 }
 
-/* Chat Container */
+/* =========================
+   Chat Container
+   ========================= */
 .chat-container {
   display: flex;
   flex-direction: column;
@@ -118,7 +143,7 @@
 }
 
 .messages-area::-webkit-scrollbar-track {
-  background: #f9fafb;
+  background: rgba(0, 80, 103, 0.04);
 }
 
 .messages-area::-webkit-scrollbar-thumb {
@@ -133,7 +158,7 @@
 /* Messages */
 .message {
   display: flex;
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.25s ease-out;
 }
 
 @keyframes fadeIn {
@@ -160,26 +185,33 @@
   padding: 12px 16px;
   border-radius: 12px;
   word-wrap: break-word;
-  line-height: 1.5;
+  line-height: 1.55;
   font-size: 14px;
+  font-weight: 700;
 }
 
+/* user bubble => pink */
 .message-user .message-content {
-  background: #ac9186;
-  color: white;
-  border-bottom-right-radius: 4px;
+  background: var(--nav-accent-2);
+  color: #fff;
+  border-bottom-right-radius: 6px;
 }
 
+/* bot bubble => light teal */
 .message-bot .message-content {
-  background: #f3f4f6;
-  color: #1f2937;
-  border-bottom-left-radius: 4px;
+  background: rgba(3, 131, 154, 0.10);
+  color: #0f172a;
+  border-bottom-left-radius: 6px;
+  border: 1px solid rgba(3, 131, 154, 0.12);
 }
 
 .message-bot .message-content.error {
   background: #fee2e2;
   color: #991b1b;
-  border-left: 3px solid #dc2626;
+  border-left: 4px solid #dc2626;
+  border-top: 1px solid #fecaca;
+  border-right: 1px solid #fecaca;
+  border-bottom: 1px solid #fecaca;
 }
 
 .message-content p {
@@ -192,7 +224,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f3f4f6;
+  background: rgba(0, 80, 103, 0.06);
+  border: 1px solid var(--border);
 }
 
 .typing-indicator {
@@ -203,7 +236,7 @@
 .typing-indicator span {
   width: 8px;
   height: 8px;
-  background: #ac9186;
+  background: var(--nav-accent-2);
   border-radius: 50%;
   animation: typing 1.4s infinite;
 }
@@ -217,7 +250,9 @@
 }
 
 @keyframes typing {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
     opacity: 0.5;
   }
@@ -227,17 +262,19 @@
   }
 }
 
-/* Example Questions */
+/* =========================
+   Example Questions
+   ========================= */
 .example-questions {
-  padding: 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #fafafa;
+  padding: 20px 24px;
+  border-top: 1px solid var(--border);
+  background: rgba(0, 80, 103, 0.04);
 }
 
 .example-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #6b7280;
+  font-size: 12px;
+  font-weight: 900;
+  color: #0f172a;
   margin: 0 0 12px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -251,25 +288,25 @@
 
 .example-btn {
   padding: 12px 16px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: #fff;
+  border: 1px solid rgba(0, 80, 103, 0.18);
+  border-radius: 12px;
   font-size: 13px;
-  color: #1f2937;
+  color: #0f172a;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
   text-align: left;
-  font-weight: 500;
+  font-weight: 800;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .example-btn:hover {
-  border-color: #ac9186;
-  background: #f9f7f2;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(172, 145, 134, 0.2);
+  border-color: var(--nav-accent);
+  background: rgba(3, 131, 154, 0.06);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
 .example-icon {
@@ -277,57 +314,69 @@
   flex-shrink: 0;
 }
 
-/* Input Area */
+/* =========================
+   Input Area
+   ========================= */
 .input-area {
   display: flex;
   gap: 12px;
   padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: white;
+  border-top: 1px solid var(--border);
+  background: #fff;
 }
 
 .message-input {
   flex: 1;
   padding: 12px 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
   font-size: 14px;
   font-family: inherit;
-  color: #1f2937;
-  transition: all 0.3s;
+  color: var(--text);
+  transition: all 0.2s;
+  background: #fff;
+  font-weight: 700;
 }
 
 .message-input:focus {
   outline: none;
-  border-color: #ac9186;
-  box-shadow: 0 0 0 4px rgba(172, 145, 134, 0.1);
+  border-color: var(--nav-accent);
+  box-shadow: 0 0 0 3px rgba(3, 131, 154, 0.12);
 }
 
 .message-input::placeholder {
   color: #9ca3af;
+  font-weight: 700;
 }
 
 .message-input:disabled {
-  background: #f9fafb;
+  background: #f3f4f6;
   color: #9ca3af;
   cursor: not-allowed;
 }
 
+/* Send button (primary pink) */
 .btn-send {
-  padding: 12px 20px;
-  background: linear-gradient(135deg, #ac9186 0%, #8f7365 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
+  padding: 12px 18px;
+
+  background: var(--nav-accent-2) !important;
+  background-color: var(--nav-accent-2) !important;
+  color: #fff !important;
+
+  border: 1px solid rgba(185, 108, 134, 0.55) !important;
+  border-radius: 12px;
+
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s;
-  font-weight: 600;
+  transition: all 0.2s;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .btn-send:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(172, 145, 134, 0.3);
+  background: #a65e76 !important;
+  box-shadow: 0 6px 16px rgba(185, 108, 134, 0.25);
+  transform: translateY(-1px);
 }
 
 .btn-send:disabled {
