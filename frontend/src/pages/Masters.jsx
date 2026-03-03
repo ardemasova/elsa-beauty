@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { fetchMasters, fetchUsers, createMaster, updateMaster, deleteMaster } from "../api/api";
 import * as XLSX from "xlsx";
-import "./appointments.css";
+import "./Appointments.css";
 
 export default function Masters() {
   const token = localStorage.getItem("token");

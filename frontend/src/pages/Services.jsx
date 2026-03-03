@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { fetchServices, createService, updateService, deleteService } from "../api/api";
 import * as XLSX from "xlsx";
-import "./appointments.css";
+import "./Appointments.css";
 
 export default function Services() {
   const token = localStorage.getItem("token");
