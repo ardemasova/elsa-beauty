@@ -1,40 +1,31 @@
-const express = require('express');
-const db = require('../db');
-const { authenticateToken } = require('../middleware/auth');
-const reportsService = require('../services/reports/reports.service');
+const express = require("express");
+const db = require("../db");
+const { authenticateToken } = require("../middleware/auth");
+const reportsService = require("../services/reports/reports.service");
 const {
   generateReportSummary,
   generateAdminChatResponse,
-  generateScheduleInsights
-} = require('../services/ai/reportSummary');
-const scheduleService = require('../services/reports/schedule.service');
+  generateScheduleInsights,
+} = require("../services/ai/reportSummary");
+const scheduleService = require("../services/reports/schedule.service");
+const { resolveTenantSchema } = require("../utils/tenant");
 
 const router = express.Router();
-
-const TENANT_SCHEMAS = {
-  "0575e7ca-a781-46ad-9b2d-0a85acb4a5d2": "salon_demo",
-};
-
-function tenantSchema(tenantId) {
-  const schema = TENANT_SCHEMAS[tenantId];
-  if (!schema) throw new Error(`No schema mapped for tenantId ${tenantId}`);
-  return `"${schema}"`;
-}
 
 // =======================
 // POST Admin Chat
 // =======================
-router.post('/admin-chat', authenticateToken, async (req, res) => {
+router.post("/admin-chat", authenticateToken, async (req, res) => {
   const { question, from, to } = req.body;
 
   if (!question || !from || !to) {
     return res.status(400).json({
-      message: 'question, from and to dates required',
+      message: "question, from and to dates required",
     });
   }
 
   try {
-    const schema = tenantSchema(req.user.tenantId);
+    const schema = await resolveTenantSchema(req);
     console.log(`Admin chat question: ${question}`);
 
     const stats = await reportsService.getReportSummaryStats(schema, from, to);
@@ -46,7 +37,10 @@ Business Context:
 - Completed Appointments: ${stats.revenue.completedAppointments}
 - Average Check: $${stats.averages.avgCheck.toFixed(2)}
 - Cancelled: ${stats.cancelled.count} (Lost: $${stats.cancelled.lostRevenue.toFixed(2)})
-- Top Masters: ${stats.revenueByMaster.slice(0, 3).map(m => `${m.masterName} ($${m.revenue.toFixed(2)})`).join(', ')}
+- Top Masters: ${stats.revenueByMaster
+      .slice(0, 3)
+      .map((m) => `${m.masterName} ($${m.revenue.toFixed(2)})`)
+      .join(", ")}
 
 User Question: ${question}`;
 
@@ -54,25 +48,25 @@ User Question: ${question}`;
 
     res.json({ answer });
   } catch (err) {
-    console.error('ADMIN CHAT ERROR:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("ADMIN CHAT ERROR:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
 // =======================
 // POST Schedule Insights
 // =======================
-router.post('/schedule-insights', authenticateToken, async (req, res) => {
+router.post("/schedule-insights", authenticateToken, async (req, res) => {
   const { from, to } = req.body;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required',
+      message: "from and to dates required",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
     console.log(`Schedule insights for period ${from} to ${to}`);
 
     const scheduleData = await reportsService.getScheduleAnalysis(schema, from, to);
@@ -80,25 +74,25 @@ router.post('/schedule-insights', authenticateToken, async (req, res) => {
 
     res.json(insights);
   } catch (err) {
-    console.error('SCHEDULE INSIGHTS ERROR:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("SCHEDULE INSIGHTS ERROR:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
 // =======================
 // POST AI report summary
 // =======================
-router.post('/ai-summary', authenticateToken, async (req, res) => {
+router.post("/ai-summary", authenticateToken, async (req, res) => {
   const { from, to } = req.body;
-  
+
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
-    const schema = tenantSchema(req.user.tenantId);
+    const schema = await resolveTenantSchema(req);
     console.log(`Generating AI summary for period ${from} to ${to}`);
 
     const stats = await reportsService.getReportSummaryStats(schema, from, to);
@@ -106,107 +100,108 @@ router.post('/ai-summary', authenticateToken, async (req, res) => {
 
     res.json(summary);
   } catch (err) {
-    console.error('AI SUMMARY ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("AI SUMMARY ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 
 // =======================
 // GET summary all
 // =======================
-router.get('/summary-all', authenticateToken, async (req, res) => {
+router.get("/summary-all", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
     const stats = await reportsService.getReportSummaryStats(schema, from, to);
     res.json(stats);
   } catch (err) {
-    console.error('GET SUMMARY ALL ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("GET SUMMARY ALL ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET summary statistics
 // =======================
-router.get('/summary', authenticateToken, async (req, res) => {
+router.get("/summary", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
     const stats = await reportsService.getSummaryStats(schema, from, to);
     res.json(stats);
   } catch (err) {
-    console.error('GET SUMMARY STATS ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("GET SUMMARY STATS ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET cancelled appointments
 // =======================
-router.get('/cancelled', authenticateToken, async (req, res) => {
+router.get("/cancelled", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
     const data = await reportsService.getCancelledStats(schema, from, to);
     res.json(data);
   } catch (err) {
-    console.error('GET CANCELLED STATS ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("GET CANCELLED STATS ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET average check
 // =======================
-router.get('/average-check', authenticateToken, async (req, res) => {
+router.get("/average-check", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
     const data = await reportsService.getAverageCheck(schema, from, to);
     res.json(data);
   } catch (err) {
-    console.error('GET AVERAGE CHECK ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("GET AVERAGE CHECK ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET master performance
 // =======================
-router.get('/master-performance', authenticateToken, async (req, res) => {
-  const schema = tenantSchema(req.user.tenantId);
+router.get("/master-performance", authenticateToken, async (req, res) => {
   const { startDate, endDate, masterId } = req.query;
 
   try {
+    const schema = await resolveTenantSchema(req);
+
     let query = `
       SELECT 
         master_id, 
@@ -238,25 +233,26 @@ router.get('/master-performance', authenticateToken, async (req, res) => {
     const { rows } = await db.query(query, params);
     res.json(rows);
   } catch (err) {
-    console.error('MASTER PERFORMANCE ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("MASTER PERFORMANCE ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 
 // =======================
 // GET revenue by day
 // =======================
-router.get('/revenue-by-day', authenticateToken, async (req, res) => {
+router.get("/revenue-by-day", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       SELECT 
@@ -271,25 +267,26 @@ router.get('/revenue-by-day', authenticateToken, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error('GET REVENUE BY DAY ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("GET REVENUE BY DAY ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 
 // =======================
 // GET revenue by master
 // =======================
-router.get('/revenue-by-master', authenticateToken, async (req, res) => {
+router.get("/revenue-by-master", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       SELECT 
@@ -310,25 +307,26 @@ router.get('/revenue-by-master', authenticateToken, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error('GET REVENUE BY MASTER ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("GET REVENUE BY MASTER ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 
 // =======================
 // GET revenue by service
 // =======================
-router.get('/revenue-by-service', authenticateToken, async (req, res) => {
+router.get("/revenue-by-service", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       SELECT 
@@ -348,41 +346,41 @@ router.get('/revenue-by-service', authenticateToken, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    console.error('GET REVENUE BY SERVICE ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("GET REVENUE BY SERVICE ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 
 // =======================
 // GET COGS Report
 // =======================
-router.get('/cogs-report', authenticateToken, async (req, res) => {
+router.get("/cogs-report", authenticateToken, async (req, res) => {
   const { from, to, groupBy } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
-    let query;
+    const schema = await resolveTenantSchema(req);
+
     let groupByClause;
 
     // Определяем группировку
-    if (groupBy === 'master') {
-      groupByClause = 'master_name';
-    } else if (groupBy === 'service') {
-      groupByClause = 'service_name';
+    if (groupBy === "master") {
+      groupByClause = "master_name";
+    } else if (groupBy === "service") {
+      groupByClause = "service_name";
     } else {
       // По умолчанию по дате
-      groupByClause = 'appointment_date';
+      groupByClause = "appointment_date";
     }
 
-    query = `
+    const query = `
       SELECT 
-        ${groupByClause === 'appointment_date' ? 'appointment_date' : groupByClause} AS group_name,
+        ${groupByClause === "appointment_date" ? "appointment_date" : groupByClause} AS group_name,
         COUNT(*) AS transactions,
         SUM(revenue)::numeric AS revenue,
         SUM(cogs)::numeric AS cogs,
@@ -394,31 +392,32 @@ router.get('/cogs-report', authenticateToken, async (req, res) => {
       WHERE appointment_date >= $1 AND appointment_date <= $2
       GROUP BY ${groupByClause}
       ORDER BY 
-        ${groupByClause === 'appointment_date' ? 'appointment_date DESC' : 'revenue DESC'}
+        ${groupByClause === "appointment_date" ? "appointment_date DESC" : "revenue DESC"}
     `;
 
     const { rows } = await db.query(query, [from, to]);
     res.json(rows);
   } catch (err) {
-    console.error('GET COGS REPORT ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("GET COGS REPORT ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 
 // =======================
 // GET COGS Summary
 // =======================
-router.get('/cogs-summary', authenticateToken, async (req, res) => {
+router.get("/cogs-summary", authenticateToken, async (req, res) => {
   const { from, to } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!from || !to) {
     return res.status(400).json({
-      message: 'from and to dates required (format: YYYY-MM-DD)',
+      message: "from and to dates required (format: YYYY-MM-DD)",
     });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       SELECT 
@@ -436,8 +435,8 @@ router.get('/cogs-summary', authenticateToken, async (req, res) => {
     );
     res.json(rows[0] || {});
   } catch (err) {
-    console.error('GET COGS SUMMARY ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("GET COGS SUMMARY ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 

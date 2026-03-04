@@ -1,53 +1,46 @@
-const express = require('express');
-const db = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const express = require("express");
+const db = require("../db");
+const { authenticateToken } = require("../middleware/auth");
+const { resolveTenantSchema } = require("../utils/tenant");
 
 const router = express.Router();
-
-const TENANT_SCHEMAS = {
-  "0575e7ca-a781-46ad-9b2d-0a85acb4a5d2": "salon_demo",
-};
-
-function tenantSchema(tenantId) {
-  const schema = TENANT_SCHEMAS[tenantId];
-  if (!schema) throw new Error(`No schema mapped for tenantId ${tenantId}`);
-  return `"${schema}"`;
-}
 
 // =======================
 // GET dashboard stats
 // =======================
-router.get('/stats', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden' });
+router.get("/stats", authenticateToken, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Forbidden" });
   }
 
-  const { period = 'month' } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
+  const { period = "month" } = req.query;
 
   try {
-    let dateFilter = '';
-    let dateLabel = '';
+    const schema = await resolveTenantSchema(req);
+
+    let dateLabel = "";
 
     const now = new Date();
-    let startDate, endDate = now;
+    let startDate;
+    const endDate = now;
 
     switch (period) {
-      case 'day':
+      case "day":
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        dateLabel = 'Today';
+        dateLabel = "Today";
         break;
-      case 'week':
+      case "week":
         startDate = new Date(now);
         startDate.setDate(now.getDate() - now.getDay());
-        dateLabel = 'This Week';
+        dateLabel = "This Week";
         break;
-      case 'month':
+      case "month":
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        dateLabel = 'This Month';
+        dateLabel = "This Month";
         break;
       default:
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateLabel = "This Month";
     }
 
     // Выручка за период
@@ -93,27 +86,28 @@ router.get('/stats', authenticateToken, async (req, res) => {
       total_appointments: avgCheckResult.rows[0].total_appointments,
     });
   } catch (err) {
-    console.error('DASHBOARD STATS ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("DASHBOARD STATS ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET appointments by date range
 // =======================
-router.get('/appointments', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden' });
+router.get("/appointments", authenticateToken, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Forbidden" });
   }
 
   const { start, end } = req.query;
-  const schema = tenantSchema(req.user.tenantId);
 
   if (!start || !end) {
-    return res.status(400).json({ message: 'start and end dates required' });
+    return res.status(400).json({ message: "start and end dates required" });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       SELECT 
@@ -142,22 +136,22 @@ router.get('/appointments', authenticateToken, async (req, res) => {
 
     res.json(rows);
   } catch (err) {
-    console.error('APPOINTMENTS RANGE ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("APPOINTMENTS RANGE ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET master stats
 // =======================
-router.get('/master-stats', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden' });
+router.get("/master-stats", authenticateToken, async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Forbidden" });
   }
 
-  const schema = tenantSchema(req.user.tenantId);
-
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       SELECT 
@@ -178,8 +172,8 @@ router.get('/master-stats', authenticateToken, async (req, res) => {
 
     res.json(rows);
   } catch (err) {
-    console.error('MASTER STATS ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("MASTER STATS ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 

@@ -1,19 +1,9 @@
 const express = require('express');
 const db = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { resolveTenantSchema } = require("../utils/tenant");
 
 const router = express.Router();
-
-const TENANT_SCHEMAS = {
-  "0575e7ca-a781-46ad-9b2d-0a85acb4a5d2": "salon_demo",
-};
-
-// Получаем схему текущего tenant-а
-function tenantSchema(tenantId) {
-  const schema = TENANT_SCHEMAS[tenantId];
-  if (!schema) throw new Error(`No schema mapped for tenantId ${tenantId}`);
-  return `"${schema}"`;
-}
 
 // =======================
 // GET all masters (admin only)
@@ -23,12 +13,9 @@ router.get('/', authenticateToken, async (req, res) => {
     return res.status(403).json({ message: 'Forbidden' });
   }
 
-  const schema = tenantSchema(req.user.tenantId);
-
   try {
-    const { rows } = await db.query(
-      `SELECT * FROM ${schema}.masters ORDER BY id`
-    );
+    const schema = await resolveTenantSchema(req);
+    const { rows } = await db.query(`SELECT * FROM ${schema}.masters ORDER BY id`);
     res.json(rows);
   } catch (err) {
     console.error('FETCH MASTERS ERROR:', err);
@@ -45,13 +32,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 
   const { id } = req.params;
-  const schema = tenantSchema(req.user.tenantId);
 
   try {
-    const { rows } = await db.query(
-      `SELECT * FROM ${schema}.masters WHERE id = $1`,
-      [id]
-    );
+    const schema = await resolveTenantSchema(req);
+    const { rows } = await db.query(`SELECT * FROM ${schema}.masters WHERE id = $1`, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ message: 'Master not found' });
@@ -75,14 +59,12 @@ router.post('/', authenticateToken, async (req, res) => {
   const { name, commission, userId } = req.body;
 
   if (!name || commission == null || !userId) {
-    return res.status(400).json({
-      message: 'userId, name, commission required',
-    });
+    return res.status(400).json({ message: 'userId, name, commission required' });
   }
 
-  const schema = tenantSchema(req.user.tenantId);
-
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       INSERT INTO ${schema}.masters (name, commission, user_id)
@@ -111,25 +93,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
   const { name, commission, userId } = req.body;
 
   if (!name || commission == null || !userId) {
-    return res.status(400).json({
-      message: 'userId, name, commission required',
-    });
+    return res.status(400).json({ message: 'userId, name, commission required' });
   }
 
-  const schema = tenantSchema(req.user.tenantId);
-
   try {
-    // Проверяем существует ли мастер
-    const checkMaster = await db.query(
-      `SELECT id FROM ${schema}.masters WHERE id = $1`,
-      [id]
-    );
+    const schema = await resolveTenantSchema(req);
 
+    const checkMaster = await db.query(`SELECT id FROM ${schema}.masters WHERE id = $1`, [id]);
     if (checkMaster.rows.length === 0) {
       return res.status(404).json({ message: 'Master not found' });
     }
 
-    // Обновляем мастера
     const { rows } = await db.query(
       `
       UPDATE ${schema}.masters
@@ -156,25 +130,16 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 
   const { id } = req.params;
-  const schema = tenantSchema(req.user.tenantId);
 
   try {
-    // Проверяем существует ли мастер
-    const checkMaster = await db.query(
-      `SELECT id FROM ${schema}.masters WHERE id = $1`,
-      [id]
-    );
+    const schema = await resolveTenantSchema(req);
 
+    const checkMaster = await db.query(`SELECT id FROM ${schema}.masters WHERE id = $1`, [id]);
     if (checkMaster.rows.length === 0) {
       return res.status(404).json({ message: 'Master not found' });
     }
 
-    // Удаляем мастера
-    await db.query(
-      `DELETE FROM ${schema}.masters WHERE id = $1`,
-      [id]
-    );
-
+    await db.query(`DELETE FROM ${schema}.masters WHERE id = $1`, [id]);
     res.json({ message: 'Master deleted successfully' });
   } catch (err) {
     console.error('DELETE MASTER ERROR:', err);

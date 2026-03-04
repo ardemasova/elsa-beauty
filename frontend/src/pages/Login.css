@@ -120,6 +120,49 @@ form {
   cursor: not-allowed;
 }
 
+/* ✅ SELECT styles (fix: your global ".login-card * { color: white !important; }" was overriding) */
+.form-group select {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.3s;
+  box-sizing: border-box;
+
+  background-color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+
+  /* make selected value visible */
+  color: #005067 !important;
+
+  /* optional: consistent look across browsers */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
+}
+
+.form-group select:disabled {
+  background-color: rgba(255, 255, 255, 0.75);
+  color: rgba(0, 80, 103, 0.55) !important;
+  cursor: not-allowed;
+}
+
+/* ✅ important: option text color must also be dark in dropdown list */
+.form-group select option {
+  color: #005067 !important;
+  background-color: #ffffff !important;
+}
+
+.form-group select option:disabled {
+  color: rgba(0, 80, 103, 0.55) !important;
+}
+
 /* Login Button */
 .login-btn {
   padding: 12px 24px;
@@ -173,4 +216,25 @@ form {
     padding: 10px 20px;
     font-size: 14px;
   }
+}
+
+/* Compact form tweaks */
+.login-form.compact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* меньше расстояние между блоками */
+}
+
+.form-group.compact {
+  margin-bottom: 0;
+}
+
+.form-group.compact label {
+  margin-bottom: 4px;
+}
+
+.form-group.compact input,
+.form-group.compact select {
+  height: 40px;
+  padding: 10px 12px;
 }

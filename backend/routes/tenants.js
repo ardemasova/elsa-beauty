@@ -119,6 +119,25 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 /**
+ * GET /api/tenants/public
+ * Public list of active tenants for login dropdown
+ */
+router.get("/public", async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, name, schema_name
+       FROM public.tenants
+       WHERE is_active = true
+       ORDER BY created_at DESC`
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error("GET /api/tenants/public error:", err);
+    return res.status(500).json({ message: "Failed to load branches" });
+  }
+});
+
+/**
  * POST /api/tenants (admin)
  * Creates schema + clones from salon_demo + inserts row.
  */

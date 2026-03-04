@@ -1,26 +1,17 @@
-const express = require('express');
-const db = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const express = require("express");
+const db = require("../db");
+const { authenticateToken } = require("../middleware/auth");
+const { resolveTenantSchema } = require("../utils/tenant");
 
 const router = express.Router();
-
-const TENANT_SCHEMAS = {
-  "0575e7ca-a781-46ad-9b2d-0a85acb4a5d2": "salon_demo",
-};
-
-function tenantSchema(tenantId) {
-  const schema = TENANT_SCHEMAS[tenantId];
-  if (!schema) throw new Error(`No schema mapped for tenantId ${tenantId}`);
-  return `"${schema}"`;
-}
 
 // =======================
 // GET company settings
 // =======================
-router.get('/company', authenticateToken, async (req, res) => {
-  const schema = tenantSchema(req.user.tenantId);
-
+router.get("/company", authenticateToken, async (req, res) => {
   try {
+    const schema = await resolveTenantSchema(req);
+
     const { rows } = await db.query(
       `
       SELECT 
@@ -41,51 +32,50 @@ router.get('/company', authenticateToken, async (req, res) => {
 
     if (rows.length === 0) {
       return res.json({
-        name: 'ELSA Beauty',
-        address: '',
-        vat_number: '',
-        bank_name: '',
-        bank_account: '',
-        bank_code: '',
-        email: '',
-        phone: '',
-        website: '',
+        name: "ELSA Beauty",
+        address: "",
+        vat_number: "",
+        bank_name: "",
+        bank_account: "",
+        bank_code: "",
+        email: "",
+        phone: "",
+        website: "",
       });
     }
 
     res.json(rows[0]);
   } catch (err) {
-    console.error('GET SETTINGS ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("GET SETTINGS ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 
 // =======================
 // UPDATE company settings
 // =======================
-router.put('/company', authenticateToken, async (req, res) => {
-  const schema = tenantSchema(req.user.tenantId);
-  const { 
-    name, 
-    address, 
-    vat_number, 
-    bank_name, 
-    bank_account, 
-    bank_code, 
-    email, 
-    phone, 
-    website 
+router.put("/company", authenticateToken, async (req, res) => {
+  const {
+    name,
+    address,
+    vat_number,
+    bank_name,
+    bank_account,
+    bank_code,
+    email,
+    phone,
+    website,
   } = req.body;
 
   if (!name) {
-    return res.status(400).json({ message: 'Company name is required' });
+    return res.status(400).json({ message: "Company name is required" });
   }
 
   try {
+    const schema = await resolveTenantSchema(req);
+
     // Проверяем есть ли уже запись
-    const checkResult = await db.query(
-      `SELECT id FROM ${schema}.settings LIMIT 1`
-    );
+    const checkResult = await db.query(`SELECT id FROM ${schema}.settings LIMIT 1`);
 
     let result;
 
@@ -118,7 +108,18 @@ router.put('/company', authenticateToken, async (req, res) => {
           phone,
           website
         `,
-        [name, address || '', vat_number || '', bank_name || '', bank_account || '', bank_code || '', email || '', phone || '', website || '', checkResult.rows[0].id]
+        [
+          name,
+          address || "",
+          vat_number || "",
+          bank_name || "",
+          bank_account || "",
+          bank_code || "",
+          email || "",
+          phone || "",
+          website || "",
+          checkResult.rows[0].id,
+        ]
       );
     } else {
       // INSERT
@@ -139,14 +140,24 @@ router.put('/company', authenticateToken, async (req, res) => {
           phone,
           website
         `,
-        [name, address || '', vat_number || '', bank_name || '', bank_account || '', bank_code || '', email || '', phone || '', website || '']
+        [
+          name,
+          address || "",
+          vat_number || "",
+          bank_name || "",
+          bank_account || "",
+          bank_code || "",
+          email || "",
+          phone || "",
+          website || "",
+        ]
       );
     }
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('UPDATE SETTINGS ERROR:', err);
-    res.status(500).json({ message: 'Server error', details: err.message });
+    console.error("UPDATE SETTINGS ERROR:", err);
+    res.status(500).json({ message: "Server error", details: err.message });
   }
 });
 

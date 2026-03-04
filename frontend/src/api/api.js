@@ -124,7 +124,8 @@ export const getDashboardStats = (token, period, dateRange) =>
 export const getMasterStats = (token) => apiRequest("/dashboard/master-stats", "GET", null, token);
 
 // Auth - БЕЗ токена
-export const loginUser = (email, password) => apiRequestNoAuth("/auth/login", "POST", { email, password });
+export const loginUser = (email, password, schema_name) =>
+  apiRequestNoAuth("/auth/login", "POST", { email, password, schema_name });
 
 export const registerUser = (data) => apiRequestNoAuth("/auth/register", "POST", data);
 
