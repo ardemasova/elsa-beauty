@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 import logo from "../assets/logo.png";
@@ -15,14 +15,37 @@ import paymentsIcon from "../assets/icons/payments.svg";
 import SettingsIcon from "../assets/icons/settings.svg";
 import AIIcon from "../assets/icons/AI.svg";
 
+function getRoleFromToken(token) {
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload?.role || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Navbar({ onCollapsedChange }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [role, setRole] = useState(() => getRoleFromToken(localStorage.getItem("token")));
+
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     onCollapsedChange?.(isCollapsed);
   }, [isCollapsed, onCollapsedChange]);
+
+  // keep role in sync if token changes (you already dispatch tokenChanged)
+  useEffect(() => {
+    const handler = (e) => {
+      const nextToken = e?.detail ?? localStorage.getItem("token");
+      setRole(getRoleFromToken(nextToken));
+    };
+
+    window.addEventListener("tokenChanged", handler);
+    return () => window.removeEventListener("tokenChanged", handler);
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -34,36 +57,50 @@ export default function Navbar({ onCollapsedChange }) {
 
   const isActive = (path) => location.pathname === path;
 
-  const navSections = [
-    {
-      title: "Main",
-      items: [
-        { path: "/dashboard", label: "Dashboard", icon: dashboardIcon },
-        { path: "/appointments", label: "Appointments", icon: appointmentsIcon },
-        { path: "/payments", label: "Payments", icon: paymentsIcon },
-      ],
-    },
-    {
-      title: "Management",
-      items: [
-        { path: "/clients", label: "Partners", icon: clientsIcon },
-        { path: "/masters", label: "Masters", icon: mastersIcon },
-        { path: "/services", label: "Items", icon: ItemsIcon },
-        { path: "/users", label: "Users", icon: usersIcon },
-      ],
-    },
-    {
-      title: "Reports",
-      items: [
-        { path: "/reports", label: "Reports", icon: reportsIcon },
-        { path: "/ai-assistant", label: "AI Assistant", icon: AIIcon },
-      ],
-    },
-    {
-      title: "System",
-      items: [{ path: "/settings", label: "Settings", icon: SettingsIcon }],
-    },
-  ];
+  const isMaster = role === "master";
+  const isAdmin = role === "admin";
+
+  const navSections = useMemo(() => {
+    const sections = [
+      {
+        title: "Main",
+        items: [
+          { path: "/dashboard", label: "Dashboard", icon: dashboardIcon },
+          { path: "/appointments", label: "Appointments", icon: appointmentsIcon },
+          { path: "/payments", label: "Payments", icon: paymentsIcon },
+        ],
+      },
+      {
+        title: "Management",
+        items: [
+          { path: "/clients", label: "Partners", icon: clientsIcon },
+          // hide for master
+          ...(isMaster ? [] : [{ path: "/masters", label: "Masters", icon: mastersIcon }]),
+          { path: "/services", label: "Items", icon: ItemsIcon },
+          // hide for master
+          ...(isMaster ? [] : [{ path: "/users", label: "Users", icon: usersIcon }]),
+        ],
+      },
+      {
+        title: "Reports",
+        items: [
+          { path: "/reports", label: "Reports", icon: reportsIcon },
+          { path: "/ai-assistant", label: "AI Assistant", icon: AIIcon },
+        ],
+      },
+      // hide Settings section entirely for master
+      ...(isMaster
+        ? []
+        : [
+            {
+              title: "System",
+              items: [{ path: "/settings", label: "Settings", icon: SettingsIcon }],
+            },
+          ]),
+    ];
+
+    return sections;
+  }, [isMaster]);
 
   return (
     <aside className={`navbar-sidebar ${isCollapsed ? "collapsed" : ""}`}>

@@ -60,6 +60,9 @@ const apiRequestNoAuth = async (endpoint, method = "GET", body = null) => {
   return response.json();
 };
 
+// Masters (me)
+export const fetchMyMaster = (token) => apiRequest("/masters/me", "GET", null, token);
+
 // Appointments
 export const fetchAppointments = (token) => apiRequest("/appointments", "GET", null, token);
 
@@ -81,7 +84,7 @@ export const updateClient = (token, id, data) => apiRequest(`/clients/${id}`, "P
 
 export const deleteClient = (token, id) => apiRequest(`/clients/${id}`, "DELETE", null, token);
 
-// Masters
+// Masters (admin)
 export const fetchMasters = (token) => apiRequest("/masters", "GET", null, token);
 
 export const createMaster = (token, data) => apiRequest("/masters", "POST", data, token);

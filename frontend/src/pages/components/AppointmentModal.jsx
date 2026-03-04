@@ -1,25 +1,39 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { updateAppointment, deleteAppointment } from "../../api/api";
 import "./AppointmentModal.css";
+
+function decodeToken(token) {
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    return null;
+  }
+}
 
 export default function AppointmentModal({ event, onClose, onUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [editStatus, setEditStatus] = useState(event.extendedProps.status);
+
   const token = localStorage.getItem("token");
+  const tokenPayload = useMemo(() => decodeToken(token), [token]);
+  const isAdmin = tokenPayload?.role === "admin";
+  const isMaster = tokenPayload?.role === "master";
 
   const data = event.extendedProps;
   const startTime = new Date(event.start);
   const endTime = new Date(event.end);
 
-  // Конвертируем цену в число
   const price = parseFloat(data.servicePrice) || 0;
 
   const handleDelete = async () => {
     if (!window.confirm("Delete this appointment?")) return;
 
     setLoading(true);
+    setError("");
+
     try {
       await deleteAppointment(token, event.id);
       onUpdate();
@@ -33,6 +47,8 @@ export default function AppointmentModal({ event, onClose, onUpdate }) {
 
   const handleStatusUpdate = async () => {
     setLoading(true);
+    setError("");
+
     try {
       await updateAppointment(token, event.id, {
         master_id: data.originalData.master_id,
@@ -50,10 +66,16 @@ export default function AppointmentModal({ event, onClose, onUpdate }) {
     }
   };
 
+  // Optional: if you want to restrict deleting for masters, uncomment:
+  // const canDelete = isAdmin; // only admin can delete
+  const canDelete = isAdmin || isMaster;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="appointment-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
+        <button className="modal-close" onClick={onClose}>
+          ×
+        </button>
 
         <div className="appointment-header">
           <h2>{data.serviceName}</h2>
@@ -63,7 +85,7 @@ export default function AppointmentModal({ event, onClose, onUpdate }) {
         <div className="appointment-body">
           <div className="info-section">
             <h3 className="section-title">Details</h3>
-            
+
             <div className="info-row">
               <span className="info-label">Master:</span>
               <span className="info-value">{data.masterName}</span>
@@ -107,16 +129,12 @@ export default function AppointmentModal({ event, onClose, onUpdate }) {
 
             <div className="info-row">
               <span className="info-label">Duration:</span>
-              <span className="info-value">
-                {Math.round((endTime - startTime) / 60000)} min
-              </span>
+              <span className="info-value">{Math.round((endTime - startTime) / 60000)} min</span>
             </div>
 
             <div className="info-row">
               <span className="info-label">Price:</span>
-              <span className="info-value price">
-                ${price.toFixed(2)}
-              </span>
+              <span className="info-value price">${price.toFixed(2)}</span>
             </div>
           </div>
 
@@ -125,7 +143,7 @@ export default function AppointmentModal({ event, onClose, onUpdate }) {
           {isEditing ? (
             <div className="info-section">
               <h3 className="section-title">Edit Status</h3>
-              
+
               <div className="form-group">
                 <select
                   value={editStatus}
@@ -140,11 +158,7 @@ export default function AppointmentModal({ event, onClose, onUpdate }) {
               </div>
 
               <div className="modal-actions">
-                <button
-                  className="btn-save"
-                  onClick={handleStatusUpdate}
-                  disabled={loading}
-                >
+                <button className="btn-save" onClick={handleStatusUpdate} disabled={loading}>
                   {loading ? "Saving..." : "Save Status"}
                 </button>
                 <button
@@ -161,20 +175,16 @@ export default function AppointmentModal({ event, onClose, onUpdate }) {
             </div>
           ) : (
             <div className="modal-actions">
-              <button
-                className="btn-edit"
-                onClick={() => setIsEditing(true)}
-                disabled={loading}
-              >
+              <button className="btn-edit" onClick={() => setIsEditing(true)} disabled={loading}>
                 Edit Status
               </button>
-              <button
-                className="btn-delete"
-                onClick={handleDelete}
-                disabled={loading}
-              >
-                {loading ? "Deleting..." : "Delete"}
-              </button>
+
+              {canDelete && (
+                <button className="btn-delete" onClick={handleDelete} disabled={loading}>
+                  {loading ? "Deleting..." : "Delete"}
+                </button>
+              )}
+
               <button className="btn-close" onClick={onClose}>
                 Close
               </button>

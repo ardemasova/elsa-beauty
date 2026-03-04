@@ -9,9 +9,7 @@ const router = express.Router();
 // GET all partners (with optional filter by type)
 // =======================
 router.get("/", authenticateToken, async (req, res) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Forbidden" });
-  }
+
 
   const { type } = req.query; // 'customer', 'vendor', or undefined for all
 

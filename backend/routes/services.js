@@ -6,16 +6,16 @@ const { resolveTenantSchema } = require("../utils/tenant");
 const router = express.Router();
 
 // =======================
-// GET all services (admin only)
+// GET all services (admin + master)
 // =======================
 router.get("/", authenticateToken, async (req, res) => {
-  if (req.user.role !== "admin") {
+  // ✅ allow master to read services (needed for Dashboard / Appointments UI)
+  if (!["admin", "master"].includes(req.user.role)) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
   try {
     const schema = await resolveTenantSchema(req);
-
     const { rows } = await db.query(
       `SELECT * FROM ${schema}.services ORDER BY name`
     );
@@ -27,10 +27,10 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 // =======================
-// GET single service by id (admin only)
+// GET single service by id (admin + master)
 // =======================
 router.get("/:id", authenticateToken, async (req, res) => {
-  if (req.user.role !== "admin") {
+  if (!["admin", "master"].includes(req.user.role)) {
     return res.status(403).json({ message: "Forbidden" });
   }
 

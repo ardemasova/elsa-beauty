@@ -9,7 +9,7 @@ const router = express.Router();
 // GET all appointments
 // =======================
 router.get("/", authenticateToken, async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const role = req.user.role;
 
   try {
@@ -68,7 +68,7 @@ router.get("/", authenticateToken, async (req, res) => {
 // =======================
 router.get("/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const role = req.user.role;
 
   try {
@@ -130,7 +130,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
 // =======================
 router.post("/", authenticateToken, async (req, res) => {
   const { master_id, client_id, service_id, start_time } = req.body;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const role = req.user.role;
 
   if (!master_id || !client_id || !service_id || !start_time) {
@@ -160,12 +160,47 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Service not found" });
     }
 
-    const duration = serviceResult.rows[0].duration;
+    // duration ожидаем как "минуты" (например 30)
+    const durationRaw = serviceResult.rows[0].duration;
+    const durationNum = Number(durationRaw);
 
-    // Рассчитываем end_time на основе start_time + duration (в минутах)
+    console.log("SERVICE DURATION RAW:", durationRaw, "-> num:", durationNum);
+
+    // Парсим start_time
     const startDate = new Date(start_time);
-    const endDate = new Date(startDate.getTime() + duration * 60000);
-    const end_time = endDate.toISOString();
+    console.log(
+      "START PARSE:",
+      start_time,
+      "->",
+      startDate.toString(),
+      "isValid:",
+      !isNaN(startDate)
+    );
+
+    if (isNaN(startDate)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid start_time format", start_time });
+    }
+
+    if (!Number.isFinite(durationNum) || durationNum <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Invalid service duration", duration: durationRaw });
+    }
+
+    // ВАЖНО: приводим И start_time, И end_time к одному формату (UTC ISO строка)
+    const start_time_utc = startDate.toISOString();
+    const endDate = new Date(startDate.getTime() + durationNum * 60000);
+    const end_time_utc = endDate.toISOString();
+
+    console.log("COMPUTED TIMES UTC:", {
+      master_id,
+      client_id,
+      service_id,
+      start_time_utc,
+      end_time_utc,
+    });
 
     // Если мастер - проверяем что это его запись
     if (role === "master") {
@@ -199,7 +234,7 @@ router.post("/", authenticateToken, async (req, res) => {
         status,
         created_at
       `,
-      [master_id, client_id, service_id, start_time, end_time]
+      [master_id, client_id, service_id, start_time_utc, end_time_utc]
     );
 
     res.status(201).json(rows[0]);
@@ -210,7 +245,6 @@ router.post("/", authenticateToken, async (req, res) => {
     console.error("Error constraint:", err.constraint);
 
     // Проверяем constraint нарушение (время пересекается)
-    // (оставляем как было, но учтите: в новых схемах у вас может называться иначе или не существовать)
     if (err.constraint === "appointments_no_overlap") {
       return res
         .status(409)
@@ -227,7 +261,7 @@ router.post("/", authenticateToken, async (req, res) => {
 router.put("/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { master_id, client_id, service_id, start_time, status } = req.body;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const role = req.user.role;
 
   if (!master_id || !client_id || !service_id || !start_time) {
@@ -277,12 +311,26 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Service not found" });
     }
 
-    const duration = serviceResult.rows[0].duration;
+    const durationRaw = serviceResult.rows[0].duration;
+    const durationNum = Number(durationRaw);
 
-    // Рассчитываем end_time
+    if (!Number.isFinite(durationNum) || durationNum <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Invalid service duration", duration: durationRaw });
+    }
+
     const startDate = new Date(start_time);
-    const endDate = new Date(startDate.getTime() + duration * 60000);
-    const end_time = endDate.toISOString();
+    if (isNaN(startDate)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid start_time format", start_time });
+    }
+
+    // То же правило: отправляем start/end в одном формате UTC ISO
+    const start_time_utc = startDate.toISOString();
+    const endDate = new Date(startDate.getTime() + durationNum * 60000);
+    const end_time_utc = endDate.toISOString();
 
     const { rows } = await db.query(
       `
@@ -299,7 +347,15 @@ router.put("/:id", authenticateToken, async (req, res) => {
         status,
         created_at
       `,
-      [master_id, client_id, service_id, start_time, end_time, status || "planned", id]
+      [
+        master_id,
+        client_id,
+        service_id,
+        start_time_utc,
+        end_time_utc,
+        status || "planned",
+        id,
+      ]
     );
 
     res.json(rows[0]);
@@ -321,7 +377,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
 // =======================
 router.delete("/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const role = req.user.role;
 
   try {

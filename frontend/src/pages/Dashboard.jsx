@@ -5,6 +5,7 @@ import {
   fetchMasters,
   fetchClients,
   fetchServices,
+  fetchMyMaster,
 } from "../api/api";
 
 import StatsWidget from "./components/StatsWidget";
@@ -17,6 +18,15 @@ import topMasterIcon from "../assets/icons/top-master.svg";
 
 import "./Dashboard.css";
 
+function decodeToken(token) {
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    return null;
+  }
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const redirectedRef = useRef(false);
@@ -27,6 +37,13 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const token = localStorage.getItem("token");
+
+  const tokenPayload = useMemo(() => decodeToken(token), [token]);
+  const role = tokenPayload?.role;
+  const userEmail = tokenPayload?.email;
+  const userId = tokenPayload?.userId; // IMPORTANT: in your JWT it's userId, not id
+  const isAdmin = role === "admin";
+  const isMaster = role === "master";
 
   // Filters
   const [masters, setMasters] = useState([]);
@@ -49,7 +66,10 @@ export default function Dashboard() {
     if (!token && !redirectedRef.current) {
       redirectedRef.current = true;
       navigate("/login", { replace: true });
-    } else if (token) {
+      return;
+    }
+
+    if (token) {
       loadFilters();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,17 +95,42 @@ export default function Dashboard() {
 
   const loadFilters = async () => {
     try {
-      const mastersData = await fetchMasters(token);
+      setError("");
+
+      // Clients & Services:
+      // NOTE: if these endpoints are admin-only in your backend, you must also add role-based access there.
       const clientsData = await fetchClients(token);
       const servicesData = await fetchServices(token);
 
-      setMasters(mastersData);
       setClients(clientsData);
       setServices(servicesData);
 
-      setSelectedMasters(mastersData.map((m) => m.id));
       setSelectedClients(clientsData.map((c) => c.id));
       setSelectedServices(servicesData.map((s) => s.id));
+
+      if (isAdmin) {
+        // Admin can fetch all masters
+        const mastersData = await fetchMasters(token);
+        setMasters(mastersData);
+        setSelectedMasters(mastersData.map((m) => m.id));
+      } else {
+        // Master must NOT call /masters (admin-only). Fetch only his own master profile.
+        // Requires backend route GET /api/masters/me and api.js export fetchMyMaster().
+        try {
+          const me = await fetchMyMaster(token);
+          setMasters(me ? [me] : []);
+          setSelectedMasters(me?.id ? [me.id] : []);
+        } catch (e) {
+          // If master profile doesn't exist in schema -> appointments endpoint will also fail.
+          console.error("Failed to fetch /masters/me:", e);
+          setMasters([]);
+          setSelectedMasters([]);
+          setError(
+            e?.message ||
+              "Master profile not found. Ask admin to create master profile in this branch/schema."
+          );
+        }
+      }
     } catch (err) {
       console.error("Failed to load filters:", err);
       setError(err.message || "Failed to load filters");
@@ -117,6 +162,10 @@ export default function Dashboard() {
         end: end.toISOString().split("T")[0],
       };
     }
+
+    // fallback
+    const start = date.toISOString().split("T")[0];
+    return { start, end: start };
   };
 
   const getDateRangeText = () => {
@@ -179,15 +228,18 @@ export default function Dashboard() {
 
   // Filter toggles
   const toggleMaster = (masterId) => {
+    if (!isAdmin) return; // masters filter locked for master role
     setSelectedMasters((prev) =>
       prev.includes(masterId) ? prev.filter((id) => id !== masterId) : [...prev, masterId]
     );
   };
+
   const toggleClient = (clientId) => {
     setSelectedClients((prev) =>
       prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]
     );
   };
+
   const toggleService = (serviceId) => {
     setSelectedServices((prev) =>
       prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]
@@ -195,13 +247,16 @@ export default function Dashboard() {
   };
 
   const toggleAllMasters = () => {
+    if (!isAdmin) return;
     if (selectedMasters.length === masters.length) setSelectedMasters([]);
     else setSelectedMasters(masters.map((m) => m.id));
   };
+
   const toggleAllClients = () => {
     if (selectedClients.length === clients.length) setSelectedClients([]);
     else setSelectedClients(clients.map((c) => c.id));
   };
+
   const toggleAllServices = () => {
     if (selectedServices.length === services.length) setSelectedServices([]);
     else setSelectedServices(services.map((s) => s.id));
@@ -218,6 +273,8 @@ export default function Dashboard() {
       setError("");
     } catch (err) {
       console.error("Failed to load dashboard data:", err);
+
+      // For master role, the most common error is missing master profile in masters table
       setError(err.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
@@ -256,7 +313,10 @@ export default function Dashboard() {
   }, [appointments, dateRange, selectedMasters, selectedClients, selectedServices]);
 
   const metrics = useMemo(() => {
-    const totalRevenue = filteredCompletedAppointments.reduce((sum, apt) => sum + (serviceMap[apt.service_id] || 0), 0);
+    const totalRevenue = filteredCompletedAppointments.reduce(
+      (sum, apt) => sum + (serviceMap[apt.service_id] || 0),
+      0
+    );
     const totalAppointments = filteredCompletedAppointments.length;
     const avgCheck = totalAppointments > 0 ? totalRevenue / totalAppointments : 0;
 
@@ -271,7 +331,10 @@ export default function Dashboard() {
     });
 
     const topMaster =
-      Object.values(masterRevenue).sort((a, b) => b.revenue - a.revenue)[0] || { name: "N/A", revenue: 0 };
+      Object.values(masterRevenue).sort((a, b) => b.revenue - a.revenue)[0] || {
+        name: "N/A",
+        revenue: 0,
+      };
 
     return {
       totalRevenue,
@@ -362,9 +425,15 @@ export default function Dashboard() {
       <div className="dashboard-topbar">
         <div className="topbar-left">
           <div className="calendar-nav">
-            <button className="nav-btn" onClick={handlePrevious}>‹</button>
-            <button className="nav-btn today-btn" onClick={handleToday}>Today</button>
-            <button className="nav-btn" onClick={handleNext}>›</button>
+            <button className="nav-btn" onClick={handlePrevious}>
+              ‹
+            </button>
+            <button className="nav-btn today-btn" onClick={handleToday}>
+              Today
+            </button>
+            <button className="nav-btn" onClick={handleNext}>
+              ›
+            </button>
             <span className="date-range">{getDateRangeText()}</span>
           </div>
         </div>
@@ -385,39 +454,42 @@ export default function Dashboard() {
 
         <div className="topbar-right">
           <div className="filters-group">
-            <div className="filter-item">
-              <button
-                className="filter-toggle"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMasterFilter(!showMasterFilter);
-                }}
-              >
-                Masters ({selectedMasters.length}/{masters.length})
-              </button>
-              {showMasterFilter && (
-                <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
-                  <label className="filter-option">
-                    <input
-                      type="checkbox"
-                      checked={selectedMasters.length === masters.length && masters.length > 0}
-                      onChange={toggleAllMasters}
-                    />
-                    <span>All Masters</span>
-                  </label>
-                  {masters.map((master) => (
-                    <label key={master.id} className="filter-option">
+            {/* ✅ Masters filter: admin only */}
+            {isAdmin && (
+              <div className="filter-item">
+                <button
+                  className="filter-toggle"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMasterFilter(!showMasterFilter);
+                  }}
+                >
+                  Masters ({selectedMasters.length}/{masters.length})
+                </button>
+                {showMasterFilter && (
+                  <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <label className="filter-option">
                       <input
                         type="checkbox"
-                        checked={selectedMasters.includes(master.id)}
-                        onChange={() => toggleMaster(master.id)}
+                        checked={selectedMasters.length === masters.length && masters.length > 0}
+                        onChange={toggleAllMasters}
                       />
-                      <span>{master.name}</span>
+                      <span>All Masters</span>
                     </label>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {masters.map((master) => (
+                      <label key={master.id} className="filter-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedMasters.includes(master.id)}
+                          onChange={() => toggleMaster(master.id)}
+                        />
+                        <span>{master.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="filter-item">
               <button
@@ -487,6 +559,13 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+
+          {/* Optional info for master */}
+          {isMaster && (
+            <div className="muted" style={{ marginLeft: 12 }}>
+              {userEmail || userId}
+            </div>
+          )}
         </div>
       </div>
 
@@ -524,7 +603,7 @@ export default function Dashboard() {
 
       {/* Sections */}
       <div className="dashboard-sections">
-        {/* 1) Revenue chart (with background on the whole card) */}
+        {/* 1) Revenue chart */}
         <section className="card dashboard-section revenue-section">
           <div className="dashboard-section-header">
             <h3>Revenue</h3>

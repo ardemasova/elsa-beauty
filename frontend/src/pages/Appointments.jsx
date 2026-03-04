@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Calendar from "./components/Calendar";
 import {
-  updateAppointment,
-  deleteAppointment,
   fetchMasters,
+  fetchMyMaster,
   fetchClients,
   fetchServices,
   getAppointmentsByDateRange,
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
 } from "../api/api";
 
-import Calendar from "./components/Calendar";
 import CreateAppointmentModal from "./components/CreateAppointmentModal";
 
 import * as XLSX from "xlsx";
@@ -16,8 +18,20 @@ import * as XLSX from "xlsx";
 import "./Dashboard.css";
 import "./Appointments.css";
 
+function decodeToken(token) {
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    return null;
+  }
+}
+
 export default function Appointments() {
   const token = localStorage.getItem("token");
+  const tokenPayload = useMemo(() => decodeToken(token), [token]);
+  const isAdmin = tokenPayload?.role === "admin";
+  const isMaster = tokenPayload?.role === "master";
 
   // ======= Верхняя панель: период/дата =======
   const [period, setPeriod] = useState("week");
@@ -199,19 +213,27 @@ export default function Appointments() {
 
   // ======= Загрузка справочников =======
   const loadFilters = async () => {
-    try {
-      const mastersData = await fetchMasters(token);
-      const clientsData = await fetchClients(token);
-      const servicesData = await fetchServices(token);
+try {
+      setError("");
 
-      setMasters(mastersData);
+      const [clientsData, servicesData] = await Promise.all([
+        fetchClients(token),
+        fetchServices(token),
+      ]);
       setClients(clientsData);
       setServices(servicesData);
-
-      // по умолчанию выбираем всё
-      setSelectedMasters(mastersData.map((m) => m.id));
       setSelectedClients(clientsData.map((c) => c.id));
       setSelectedServices(servicesData.map((s) => s.id));
+
+      if (isAdmin) {
+        const mastersData = await fetchMasters(token);
+        setMasters(mastersData);
+        setSelectedMasters(mastersData.map((m) => m.id));
+      } else {
+        const me = await fetchMyMaster(token); // ✅ instead of fetchMasters()
+        setMasters(me ? [me] : []);
+        setSelectedMasters(me?.id ? [me.id] : []);
+      }
     } catch (err) {
       console.error("Failed to load filters:", err);
       setError(err.message || "Failed to load filters");
@@ -238,9 +260,9 @@ export default function Appointments() {
 
   // Инициализация
   useEffect(() => {
-    if (!token) return;
-    loadFilters();
-  }, [token]);
+    if (token) loadFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, isAdmin, isMaster]);
 
   // Перезагрузка при смене периода/даты
   useEffect(() => {
@@ -526,6 +548,7 @@ export default function Appointments() {
       <div className="calendar-main-section">
         <Calendar
           onRefresh={loadAppointmentsByRange}
+          masters={masters}
           selectedMasters={selectedMasters}
           selectedClients={selectedClients}
           selectedServices={selectedServices}
@@ -534,7 +557,7 @@ export default function Appointments() {
           currentDate={currentDate}
         />
       </div>
-
+      {error && <div className="error-message">{error}</div>}
       {/* Таблица + экспорт */}
       <div className="container">
         <div className="appointments-header-row">
