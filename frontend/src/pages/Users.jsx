@@ -1,12 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { fetchUsers, createUser, updateUser, deleteUser } from "../api/api";
+import { fetchTenants } from "../api/tenantsApi";
 import * as XLSX from "xlsx";
 import "./Appointments.css";
+import "./Users.css";
 
 export default function Users() {
   const token = localStorage.getItem("token");
 
   const [users, setUsers] = useState([]);
+  const [tenants, setTenants] = useState([]);
+
+  const [selectedTenantId, setSelectedTenantId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -19,9 +24,26 @@ export default function Users() {
   // Delete confirm
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
+  const tenantMap = useMemo(() => {
+    const m = new Map();
+    tenants.forEach((t) => m.set(t.id, t));
+    return m;
+  }, [tenants]);
+
+  const loadTenants = async () => {
+    try {
+      const data = await fetchTenants(token);
+      setTenants(Array.isArray(data) ? data : []);
+    } catch (err) {
+      // tenants are not strictly required for users table to render,
+      // but required for filter + branch selector in modal
+      console.error("Failed to load tenants:", err);
+    }
+  };
+
   const loadUsers = async () => {
     try {
-      const data = await fetchUsers(token);
+      const data = await fetchUsers(token, selectedTenantId ? { tenant_id: selectedTenantId } : {});
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || "Failed to load users");
@@ -30,9 +52,15 @@ export default function Users() {
 
   useEffect(() => {
     if (!token) return;
-    loadUsers();
+    loadTenants();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selectedTenantId]);
 
   const handleCreate = async (payload) => {
     setError("");
@@ -82,6 +110,8 @@ export default function Users() {
       ID: u.id,
       Email: u.email,
       Role: u.role,
+      Branch: u.tenant_name || tenantMap.get(u.tenant_id)?.name || "",
+      TenantID: u.tenant_id || "",
       Created: u.created_at ? new Date(u.created_at).toISOString() : "",
     }));
 
@@ -95,16 +125,32 @@ export default function Users() {
 
   return (
     <div className="container">
-      <div className="appointments-header-row">
-        <h2>Users</h2>
+      <div className="users-header-row">
+        <h2 className="users-title">Users</h2>
 
-        <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
-          + New User
-        </button>
+        <div className="users-header-controls">
+          <select
+            className="users-branch-filter"
+            value={selectedTenantId}
+            onChange={(e) => setSelectedTenantId(e.target.value)}
+            disabled={loading}
+          >
+            <option value="">All branches</option>
+            {tenants.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} {t.is_active ? "" : "(inactive)"}
+              </option>
+            ))}
+          </select>
 
-        <button className="export-btn" type="button" onClick={handleExportExcel} disabled={loading}>
-          Export to Excel
-        </button>
+          <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
+            + New User
+          </button>
+
+          <button className="export-btn" type="button" onClick={handleExportExcel} disabled={loading}>
+            Export to Excel
+          </button>
+        </div>
       </div>
 
       {error && <p className="appointments-error-message">{error}</p>}
@@ -115,6 +161,7 @@ export default function Users() {
             <tr>
               <th>Email</th>
               <th>Role</th>
+              <th>Branch</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -123,7 +170,7 @@ export default function Users() {
             {users.length > 0 ? (
               users.map((u) => (
                 <tr key={u.id}>
-                  <td>{u.email}</td>
+                  <td className="users-email">{u.email}</td>
                   <td>
                     <span
                       style={{
@@ -139,6 +186,11 @@ export default function Users() {
                       {u.role}
                     </span>
                   </td>
+
+                  <td className="users-branch">
+                    {u.tenant_name || tenantMap.get(u.tenant_id)?.name || "-"}
+                  </td>
+
                   <td className="actions">
                     <button type="button" className="secondary" onClick={() => setEditingUser(u)} disabled={loading}>
                       Edit
@@ -156,7 +208,7 @@ export default function Users() {
               ))
             ) : (
               <tr>
-                <td colSpan="3" style={{ textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan="4" style={{ textAlign: "center", color: "#9ca3af" }}>
                   No users yet
                 </td>
               </tr>
@@ -170,7 +222,8 @@ export default function Users() {
         <UserModal
           title="New User"
           loading={loading}
-          initialValues={{ email: "", password: "", role: "master" }}
+          tenants={tenants}
+          initialValues={{ email: "", password: "", role: "master", tenant_id: selectedTenantId || "" }}
           onClose={() => setShowCreateModal(false)}
           onSubmit={(values) => handleCreate(values)}
           submitLabel="Create"
@@ -183,16 +236,19 @@ export default function Users() {
         <UserModal
           title="Edit User"
           loading={loading}
+          tenants={tenants}
           initialValues={{
             email: editingUser.email || "",
             password: "",
             role: editingUser.role || "master",
+            tenant_id: editingUser.tenant_id || "",
           }}
           onClose={() => setEditingUser(null)}
           onSubmit={(values) => {
             const updateData = {
               email: values.email,
               role: values.role,
+              tenant_id: values.tenant_id || null,
             };
             if (values.password) updateData.password = values.password; // optional
             return handleUpdate(editingUser.id, updateData);
@@ -223,15 +279,17 @@ export default function Users() {
   );
 }
 
-function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLabel, passwordHelp }) {
+function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLabel, passwordHelp, tenants }) {
   const [email, setEmail] = useState(initialValues.email);
   const [password, setPassword] = useState(initialValues.password);
   const [role, setRole] = useState(initialValues.role);
+  const [tenantId, setTenantId] = useState(initialValues.tenant_id);
 
   useEffect(() => {
     setEmail(initialValues.email);
     setPassword(initialValues.password);
     setRole(initialValues.role);
+    setTenantId(initialValues.tenant_id);
   }, [initialValues]);
 
   const handleSubmit = (e) => {
@@ -240,6 +298,7 @@ function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLab
       email,
       password,
       role,
+      tenant_id: tenantId || null,
     });
   };
 
@@ -283,6 +342,20 @@ function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLab
             <select value={role} onChange={(e) => setRole(e.target.value)} required disabled={loading}>
               <option value="master">Master</option>
               <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Branch *</label>
+            <select value={tenantId || ""} onChange={(e) => setTenantId(e.target.value)} required disabled={loading}>
+              <option value="" disabled>
+                Select branch...
+              </option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} {t.is_active ? "" : "(inactive)"}
+                </option>
+              ))}
             </select>
           </div>
 

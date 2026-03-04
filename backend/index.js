@@ -10,6 +10,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const paymentsRouter = require('./routes/payments');
 const reportsRouter = require('./routes/reports');
 const settingsRouter = require('./routes/settings');
+const tenantsRouter = require("./routes/tenants");
 
 require('dotenv').config();
 
@@ -47,6 +48,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/settings', settingsRouter);
+app.use("/api/tenants", tenantsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
