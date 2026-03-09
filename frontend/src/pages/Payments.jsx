@@ -210,7 +210,7 @@ export default function Payments() {
   return (
     <div className="payments-container">
       <div className="payments-header">
-        <h1>Payments</h1>
+        <h1>Invoices</h1>
 
         <div className="payments-header-actions">
           <button className="btn-primary" onClick={() => setShowCreateModal(true)}>
@@ -267,7 +267,7 @@ export default function Payments() {
                 <tr>
                   <th>Partner</th>
                   <th>Appointment</th>
-                  <th>Amount</th>
+                  <th>Amount (VAT incl.)</th>
                   <th>Method</th>
                   <th>Paid At</th>
                   <th>Actions</th>
@@ -281,9 +281,7 @@ export default function Payments() {
                       <td className="cell-partner">
                         <div className="partner-info">
                           <span className="partner-name">{getPartnerInfo(payment.partner_id)}</span>
-                          <span className={`partner-type badge-${payment.partner_type === "customer" ? "blue" : "green"}`}>
-                            {payment.partner_type === "customer" ? "Customer" : "Vendor"}
-                          </span>
+
                         </div>
                       </td>
 
@@ -491,7 +489,7 @@ function PaymentModal({
           </div>
 
           <div className="form-group">
-            <label>Amount *</label>
+            <label>Amount (VAT incl.)</label>
             <input
               type="number"
               step="0.01"

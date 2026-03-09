@@ -10,13 +10,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
 .payments-header h1 {
   font-size: 32px;
   font-weight: 800;
-  color: #005067; /* nav-bg style from Dashboard theme */
+  color: var(--nav-bg);
   margin: 0;
 }
 
@@ -359,15 +361,7 @@
     padding: 20px;
   }
 
-  .payments-header {
-    flex-direction: column;
-    gap: 20px;
-    align-items: flex-start;
-  }
 
-  .payments-header h1 {
-    font-size: 24px;
-  }
 
   .payments-table {
     font-size: 12px;
@@ -386,3 +380,14 @@
     margin: 20px;
   }
 }
+
+/* header actions (New + Export) */
+.payments-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+ .payments-header-actions {
+    width: 100%;
+  }

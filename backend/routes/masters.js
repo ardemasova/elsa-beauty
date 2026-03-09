@@ -48,17 +48,37 @@ router.get("/me", authenticateToken, async (req, res) => {
 });
 
 // =======================
-// GET all masters (admin only)
+// GET all masters
+// - admin: full
+// - master: limited list (for viewing appointments/calendar)
 // =======================
 router.get("/", authenticateToken, async (req, res) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Forbidden" });
-  }
-
   try {
     const schema = await resolveTenantSchema(req);
-    const { rows } = await db.query(`SELECT * FROM ${schema}.masters ORDER BY id`);
-    res.json(rows);
+
+    // admin: as before
+    if (req.user.role === "admin") {
+      const { rows } = await db.query(`SELECT * FROM ${schema}.masters ORDER BY id`);
+      return res.json(rows);
+    }
+
+    // master: allow, but only safe fields
+    if (req.user.role === "master") {
+      const { rows } = await db.query(
+        `
+        SELECT
+          id,
+          name,
+          color,
+          is_active
+        FROM ${schema}.masters
+        ORDER BY name
+        `
+      );
+      return res.json(rows);
+    }
+
+    return res.status(403).json({ message: "Forbidden" });
   } catch (err) {
     console.error("FETCH MASTERS ERROR:", err);
     res.status(500).json({ message: "Server error" });
@@ -78,10 +98,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    const { rows } = await db.query(
-      `SELECT * FROM ${schema}.masters WHERE id = $1`,
-      [id]
-    );
+    const { rows } = await db.query(`SELECT * FROM ${schema}.masters WHERE id = $1`, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ message: "Master not found" });
@@ -149,17 +166,12 @@ router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    // Проверяем существует ли мастер
-    const checkMaster = await db.query(
-      `SELECT id FROM ${schema}.masters WHERE id = $1`,
-      [id]
-    );
+    const checkMaster = await db.query(`SELECT id FROM ${schema}.masters WHERE id = $1`, [id]);
 
     if (checkMaster.rows.length === 0) {
       return res.status(404).json({ message: "Master not found" });
     }
 
-    // Обновляем мастера
     const { rows } = await db.query(
       `
       UPDATE ${schema}.masters
@@ -190,17 +202,12 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    // Проверяем существует ли мастер
-    const checkMaster = await db.query(
-      `SELECT id FROM ${schema}.masters WHERE id = $1`,
-      [id]
-    );
+    const checkMaster = await db.query(`SELECT id FROM ${schema}.masters WHERE id = $1`, [id]);
 
     if (checkMaster.rows.length === 0) {
       return res.status(404).json({ message: "Master not found" });
     }
 
-    // Удаляем мастера
     await db.query(`DELETE FROM ${schema}.masters WHERE id = $1`, [id]);
 
     res.json({ message: "Master deleted successfully" });

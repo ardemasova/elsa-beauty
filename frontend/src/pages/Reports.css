@@ -168,9 +168,9 @@
 
 .report-header-right {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* ключевое: не переносить Apply на следующую строку */
 }
 
 /* Export button style */
@@ -566,7 +566,80 @@
   color: #ef4444;
 }
 
-/* Responsive */
+/* =========================
+   NEW: Master view layout tweaks
+   ========================= */
+
+/* 1) Когда это страница Reports для мастера (не админ),
+   делаем блок фильтров компактным и в одну линию с Export.
+   Это завязано на отсутствие .report-header-row в Master Performance
+   (в Revenue/COGS он уже есть), поэтому добавляем "умное" правило:
+   если есть performance-filters сразу после report-header, делаем его компактным.
+*/
+.report-section .report-header + .performance-filters {
+  /* по умолчанию оставить как есть (admin view) */
+}
+
+/* Компактный вид можно включать через класс на body/контейнер, но так как в JSX мы не добавляли классы,
+   делаем мягкую версию: если мастер-performance-grid содержит только 1 карточку, то можно слегка расширить её.
+   Более надежный способ ниже: добавь класс .reports-master-view на контейнер (если захочешь).
+*/
+
+/* 2) Расширяем карточку, если на экране достаточно места */
+.master-card {
+  max-width: 100%;
+}
+
+/* Опционально: если хочешь чтобы одна карточка выглядела "шире", чем в сетке,
+   можно добавить правило: когда сетка, выравниваем карточку по центру и даём ей большую ширину */
+.master-performance-grid {
+  align-items: start;
+}
+
+.master-performance-grid > .master-card:only-child {
+  grid-column: 1 / -1;
+  max-width: 980px; /* шире панель */
+  justify-self: center;
+}
+
+/* 3) Компактная панель фильтров (в одну линию)
+   Это сработает, если у мастера остаётся только 1-2 фильтра.
+*/
+.performance-filters {
+  /* оставляем текущий стиль, но позволяем стать компактнее */
+}
+
+.performance-filters .filters-row {
+  /* вместо grid — flex для одной строки */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.performance-filters .filter-group {
+  min-width: 180px;
+}
+
+.performance-filters .btn-apply {
+  align-self: flex-end;
+  height: 40px;
+}
+
+/* 4) Сделаем сам фильтр чуть меньше визуально */
+.performance-filters {
+  padding: 14px;
+  gap: 12px;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 8px 10px;
+}
+
+/* =========================
+   Responsive
+   ========================= */
 @media (max-width: 768px) {
   .reports-container {
     padding: 20px;
@@ -605,5 +678,156 @@
 
   .summary-cards {
     grid-template-columns: 1fr;
+  }
+
+  /* компактные фильтры на мобилке — всё равно в колонку */
+  .performance-filters .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .performance-filters .filter-group {
+    min-width: 0;
+  }
+}
+/* =========================
+   Master view (не админ): компактный фильтр + широкая панель
+   ========================= */
+
+.reports-master-view .reports-container {
+  /* на всякий случай, но контейнер уже и есть reports-container */
+}
+
+/* Чуть шире страница для мастера */
+.reports-master-view.reports-container {
+  max-width: 1600px;
+}
+
+/* В master-view делаем фильтр компактнее */
+.reports-master-view .performance-filters {
+  padding: 12px;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* В master-view фильтры в одну линию */
+.reports-master-view .performance-filters .filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  /* чтобы блок не был "во всю ширину" и выглядел компактно */
+  justify-content: flex-end;
+}
+
+/* Меньше инпуты */
+.reports-master-view .filter-group select,
+.reports-master-view .filter-group input {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+/* Лейблы можно чуть меньше, чтобы всё помещалось */
+.reports-master-view .filter-group label {
+  font-size: 11px;
+}
+
+/* Кнопка apply чуть ниже по высоте, чтобы совпадала с селектами */
+.reports-master-view .performance-filters .btn-apply {
+  padding: 9px 14px;
+  height: 38px;
+}
+
+/* ШИРЕ панель мастера:
+   когда карточка одна — растягиваем на всю ширину и увеличиваем max-width */
+.reports-master-view .master-performance-grid > .master-card:only-child {
+  grid-column: 1 / -1;
+  max-width: 1200px;
+  justify-self: center;
+}
+
+/* Чуть увеличим сетку значений, чтобы карточка выглядела “пошире” */
+.reports-master-view .card-stats {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* На средних экранах вернуть 2 колонки */
+@media (max-width: 1100px) {
+  .reports-master-view .card-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* На мобилке всё в колонку (как было) */
+@media (max-width: 768px) {
+  .reports-master-view.reports-container {
+    max-width: 1400px;
+  }
+
+  .reports-master-view .performance-filters .filters-row {
+    justify-content: stretch;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Контейнер фильтров: тоже в одну строку */
+.performance-filters-inline {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: nowrap; /* ключевое: не переносить Apply */
+}
+
+/* Чуть уменьшаем минимальную ширину, чтобы всё помещалось рядом с Export */
+.performance-filters-inline .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px; /* было 180/160 — из-за этого Apply мог уходить вниз */
+}
+
+/* Селекты/инпуты фиксированной высоты */
+.performance-filters-inline .filter-group select,
+.performance-filters-inline .filter-group input {
+  height: 42px;          /* выравниваем визуально с кнопками */
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  color: var(--text);
+}
+
+/* Apply: такая же высота как select */
+.performance-filters-inline .btn-apply {
+  height: 42px;          /* ключевое */
+  margin-bottom: 0;      /* на случай глобальных стилей */
+  padding: 0 16px;       /* чтобы высота работала ровно */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* Export: тоже фиксируем высоту, чтобы совпадала */
+.report-header-right .btn-secondary {
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Мобилка/узкие экраны: разрешаем перенос */
+@media (max-width: 900px) {
+  .report-header-right {
+    flex-wrap: wrap;
+  }
+  .performance-filters-inline {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .performance-filters-inline .filter-group {
+    min-width: 0;
+    flex: 1 1 220px;
   }
 }

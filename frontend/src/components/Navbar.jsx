@@ -67,7 +67,7 @@ export default function Navbar({ onCollapsedChange }) {
         items: [
           { path: "/dashboard", label: "Dashboard", icon: dashboardIcon },
           { path: "/appointments", label: "Appointments", icon: appointmentsIcon },
-          { path: "/payments", label: "Payments", icon: paymentsIcon },
+          { path: "/payments", label: "Invoices", icon: paymentsIcon },
         ],
       },
       {

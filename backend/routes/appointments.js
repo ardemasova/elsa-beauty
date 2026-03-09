@@ -6,15 +6,19 @@ const { resolveTenantSchema } = require("../utils/tenant");
 const router = express.Router();
 
 // =======================
-// GET all appointments
+// GET all appointments (optionally by date range)
+// Supports:
+//   GET /api/appointments
+//   GET /api/appointments?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
 // =======================
 router.get("/", authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
   const role = req.user.role;
+  const { start_date, end_date } = req.query;
 
   try {
     const schema = await resolveTenantSchema(req);
 
+    // базовый SELECT (тот же что был)
     let query = `
       SELECT 
         a.id,
@@ -33,29 +37,31 @@ router.get("/", authenticateToken, async (req, res) => {
       JOIN ${schema}.masters m ON a.master_id = m.id
       JOIN ${schema}.clients c ON a.client_id = c.id
       JOIN ${schema}.services s ON a.service_id = s.id
+      WHERE 1=1
     `;
 
-    // Если мастер - показываем только его записи
-    if (role === "master") {
-      // Ищем мастера по user_id
-      const masterResult = await db.query(
-        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
-        [userId]
-      );
+    const params = [];
 
-      if (masterResult.rows.length === 0) {
-        return res.status(403).json({ message: "Master profile not found" });
-      }
-
-      const masterId = masterResult.rows[0].id;
-      query += ` WHERE a.master_id = $1 ORDER BY a.start_time DESC`;
-      const { rows } = await db.query(query, [masterId]);
-      return res.json(rows);
+    // ✅ date range filtering (used by frontend getAppointmentsByDateRange)
+    if (start_date) {
+      params.push(start_date);
+      query += ` AND a.start_time::date >= $${params.length}`;
+    }
+    if (end_date) {
+      params.push(end_date);
+      query += ` AND a.start_time::date <= $${params.length}`;
     }
 
-    // Админ видит все записи
+    // ✅ Visibility rules:
+    // - admin: sees all
+    // - master: now also sees all (read-only is enforced by PUT/DELETE checks)
+    if (!["admin", "master"].includes(role)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     query += ` ORDER BY a.start_time DESC`;
-    const { rows } = await db.query(query);
+
+    const { rows } = await db.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error("FETCH APPOINTMENTS ERROR:", err);
@@ -65,6 +71,8 @@ router.get("/", authenticateToken, async (req, res) => {
 
 // =======================
 // GET single appointment by id
+// NOTE: оставляем прежнюю защиту: мастер может смотреть только свою запись.
+// Если хочешь, можно разрешить мастеру смотреть любую запись и тут тоже.
 // =======================
 router.get("/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
@@ -244,7 +252,6 @@ router.post("/", authenticateToken, async (req, res) => {
     console.error("Error code:", err.code);
     console.error("Error constraint:", err.constraint);
 
-    // Проверяем constraint нарушение (время пересекается)
     if (err.constraint === "appointments_no_overlap") {
       return res
         .status(409)
@@ -273,7 +280,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    // Проверяем существует ли запись
     const checkAppointment = await db.query(
       `SELECT master_id FROM ${schema}.appointments WHERE id = $1`,
       [id]
@@ -301,7 +307,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
       }
     }
 
-    // Получаем продолжительность услуги
     const serviceResult = await db.query(
       `SELECT duration FROM ${schema}.services WHERE id = $1`,
       [service_id]
@@ -327,7 +332,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
         .json({ message: "Invalid start_time format", start_time });
     }
 
-    // То же правило: отправляем start/end в одном формате UTC ISO
     const start_time_utc = startDate.toISOString();
     const endDate = new Date(startDate.getTime() + durationNum * 60000);
     const end_time_utc = endDate.toISOString();
@@ -383,7 +387,6 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    // Проверяем существует ли запись
     const checkAppointment = await db.query(
       `SELECT master_id FROM ${schema}.appointments WHERE id = $1`,
       [id]
@@ -411,7 +414,6 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       }
     }
 
-    // Удаляем запись
     await db.query(`DELETE FROM ${schema}.appointments WHERE id = $1`, [id]);
 
     res.json({ message: "Appointment deleted successfully" });

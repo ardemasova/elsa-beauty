@@ -115,6 +115,15 @@ export const updateService = (token, id, data) => apiRequest(`/services/${id}`, 
 
 export const deleteService = (token, id) => apiRequest(`/services/${id}`, "DELETE", null, token);
 
+// Items (Stock)
+export const fetchItems = (token) => apiRequest("/items", "GET", null, token);
+
+export const createItem = (token, data) => apiRequest("/items", "POST", data, token);
+
+export const updateItem = (token, id, data) => apiRequest(`/items/${id}`, "PUT", data, token);
+
+export const deleteItem = (token, id) => apiRequest(`/items/${id}`, "DELETE", null, token);
+
 // Dashboard
 export const getDashboardStats = (token, period, dateRange) =>
   apiRequest(

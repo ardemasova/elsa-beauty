@@ -581,3 +581,40 @@
 }
 
 }
+
+/* =========================
+   Tabs (Services / Stock)
+   ========================= */
+.appointments-tabs {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 18px 0;
+  border-bottom: 2px solid var(--border);
+}
+
+.appointments-tabs .tab {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.appointments-tabs .tab:hover:not(:disabled) {
+  color: var(--nav-bg);
+}
+
+.appointments-tabs .tab.active {
+  color: var(--nav-accent-2);
+  border-bottom-color: var(--nav-accent-2);
+}
+
+.appointments-tabs .tab:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

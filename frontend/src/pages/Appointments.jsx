@@ -33,6 +33,8 @@ export default function Appointments() {
   const isAdmin = tokenPayload?.role === "admin";
   const isMaster = tokenPayload?.role === "master";
 
+  const [myMasterId, setMyMasterId] = useState("");
+
   // ======= Верхняя панель: период/дата =======
   const [period, setPeriod] = useState("week");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -72,6 +74,12 @@ export default function Appointments() {
 
   // Чтобы не закрывать фильтры кликом внутри области фильтров
   const filtersWrapperRef = useRef(null);
+
+  const canEditAppointment = (appointment) => {
+    if (isAdmin) return true;
+    if (isMaster) return Boolean(myMasterId) && appointment?.master_id === myMasterId;
+    return false;
+  };
 
   // ======= Даты: диапазон для API (как в Dashboard) =======
   const getDateRangeForAPI = () => {
@@ -213,27 +221,25 @@ export default function Appointments() {
 
   // ======= Загрузка справочников =======
   const loadFilters = async () => {
-try {
+    try {
       setError("");
 
-      const [clientsData, servicesData] = await Promise.all([
+      const [clientsData, servicesData, mastersData, me] = await Promise.all([
         fetchClients(token),
         fetchServices(token),
+        fetchMasters(token), // (после правки backend/masters.js мастер сможет это вызвать)
+        isMaster ? fetchMyMaster(token) : Promise.resolve(null),
       ]);
+
       setClients(clientsData);
       setServices(servicesData);
       setSelectedClients(clientsData.map((c) => c.id));
       setSelectedServices(servicesData.map((s) => s.id));
 
-      if (isAdmin) {
-        const mastersData = await fetchMasters(token);
-        setMasters(mastersData);
-        setSelectedMasters(mastersData.map((m) => m.id));
-      } else {
-        const me = await fetchMyMaster(token); // ✅ instead of fetchMasters()
-        setMasters(me ? [me] : []);
-        setSelectedMasters(me?.id ? [me.id] : []);
-      }
+      setMasters(Array.isArray(mastersData) ? mastersData : []);
+      setSelectedMasters(Array.isArray(mastersData) ? mastersData.map((m) => m.id) : []);
+
+      setMyMasterId(me?.id || "");
     } catch (err) {
       console.error("Failed to load filters:", err);
       setError(err.message || "Failed to load filters");
@@ -312,6 +318,8 @@ try {
 
   // ======= Edit/Delete =======
   const handleEditClick = (appointment) => {
+    if (!canEditAppointment(appointment)) return;
+
     setEditingId(appointment.id);
     setEditMasterId(appointment.master_id);
     setEditClientId(appointment.client_id);
@@ -322,6 +330,12 @@ try {
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
+    if (!editingId) return;
+
+    // master может сохранять только свои
+    const apt = appointments.find((a) => a.id === editingId);
+    if (!canEditAppointment(apt)) return;
+
     setError("");
     setLoading(true);
 
@@ -358,9 +372,17 @@ try {
     setEditStatus("planned");
   };
 
-  const handleDeleteClick = (id) => setDeleteConfirmId(id);
+  const handleDeleteClick = (appointment) => {
+    if (!canEditAppointment(appointment)) return;
+    setDeleteConfirmId(appointment.id);
+  };
 
   const handleConfirmDelete = async () => {
+    if (!deleteConfirmId) return;
+
+    const apt = appointments.find((a) => a.id === deleteConfirmId);
+    if (!canEditAppointment(apt)) return;
+
     setError("");
     setLoading(true);
 
@@ -457,11 +479,7 @@ try {
                   </label>
                   {masters.map((m) => (
                     <label key={m.id} className="filter-option">
-                      <input
-                        type="checkbox"
-                        checked={selectedMasters.includes(m.id)}
-                        onChange={() => toggleMaster(m.id)}
-                      />
+                      <input type="checkbox" checked={selectedMasters.includes(m.id)} onChange={() => toggleMaster(m.id)} />
                       <span>{m.name}</span>
                     </label>
                   ))}
@@ -469,6 +487,7 @@ try {
               )}
             </div>
 
+            {/* Clients filter */}
             <div className="filter-item">
               <button
                 className="filter-toggle"
@@ -491,11 +510,7 @@ try {
                   </label>
                   {clients.map((c) => (
                     <label key={c.id} className="filter-option">
-                      <input
-                        type="checkbox"
-                        checked={selectedClients.includes(c.id)}
-                        onChange={() => toggleClient(c.id)}
-                      />
+                      <input type="checkbox" checked={selectedClients.includes(c.id)} onChange={() => toggleClient(c.id)} />
                       <span>{c.name}</span>
                     </label>
                   ))}
@@ -503,6 +518,7 @@ try {
               )}
             </div>
 
+            {/* Services filter */}
             <div className="filter-item">
               <button
                 className="filter-toggle"
@@ -525,11 +541,7 @@ try {
                   </label>
                   {services.map((s) => (
                     <label key={s.id} className="filter-option">
-                      <input
-                        type="checkbox"
-                        checked={selectedServices.includes(s.id)}
-                        onChange={() => toggleService(s.id)}
-                      />
+                      <input type="checkbox" checked={selectedServices.includes(s.id)} onChange={() => toggleService(s.id)} />
                       <span>{s.name}</span>
                     </label>
                   ))}
@@ -537,7 +549,6 @@ try {
               )}
             </div>
           </div>
-
         </div>
       </div>
 
@@ -557,12 +568,16 @@ try {
           currentDate={currentDate}
         />
       </div>
+
       {error && <div className="error-message">{error}</div>}
+
       {/* Таблица + экспорт */}
       <div className="container">
         <div className="appointments-header-row">
           <h2>Appointments</h2>
-                    <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
+
+          {/* Создание: admin всегда, master только для себя (разрешено backend) */}
+          <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
             + New Appointment
           </button>
 
@@ -593,47 +608,47 @@ try {
 
             <tbody>
               {filteredAppointments.length > 0 ? (
-                filteredAppointments.map((a) => (
-                  <tr key={a.id}>
-                    <td>{getMasterName(a.master_id)}</td>
-                    <td>{getClientName(a.client_id)}</td>
-                    <td>{getServiceName(a.service_id)}</td>
-                    <td>{formatDateTime(a.start_time)}</td>
-                    <td>{getServiceDuration(a.service_id)} min</td>
-                    <td>
-                      <span
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: "4px",
-                          fontSize: "12px",
-                          fontWeight: "500",
-                          backgroundColor: getStatusColor(a.status).bg,
-                          color: getStatusColor(a.status).color,
-                        }}
-                      >
-                        {a.status}
-                      </span>
-                    </td>
-                    <td className="actions">
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => handleEditClick(a)}
-                        disabled={loading}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="danger"
-                        onClick={() => handleDeleteClick(a.id)}
-                        disabled={loading}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filteredAppointments.map((a) => {
+                  const editable = canEditAppointment(a);
+
+                  return (
+                    <tr key={a.id}>
+                      <td>{getMasterName(a.master_id)}</td>
+                      <td>{getClientName(a.client_id)}</td>
+                      <td>{getServiceName(a.service_id)}</td>
+                      <td>{formatDateTime(a.start_time)}</td>
+                      <td>{getServiceDuration(a.service_id)} min</td>
+                      <td>
+                        <span
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            backgroundColor: getStatusColor(a.status).bg,
+                            color: getStatusColor(a.status).color,
+                          }}
+                        >
+                          {a.status}
+                        </span>
+                      </td>
+                      <td className="actions">
+                        {editable ? (
+                          <>
+                            <button type="button" className="secondary" onClick={() => handleEditClick(a)} disabled={loading}>
+                              Edit
+                            </button>
+                            <button type="button" className="danger" onClick={() => handleDeleteClick(a)} disabled={loading}>
+                              Delete
+                            </button>
+                          </>
+                        ) : (
+                          <span style={{ color: "#9ca3af", fontWeight: 700 }}>View only</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="7" style={{ textAlign: "center", color: "#9ca3af" }}>
@@ -651,12 +666,7 @@ try {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h3>Edit Appointment</h3>
               <form onSubmit={handleSaveEdit}>
-                <select
-                  value={editMasterId}
-                  onChange={(e) => setEditMasterId(e.target.value)}
-                  required
-                  disabled={loading}
-                >
+                <select value={editMasterId} onChange={(e) => setEditMasterId(e.target.value)} required disabled={loading || (isMaster && editMasterId !== myMasterId)}>
                   <option value="">Select Master</option>
                   {masters.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -665,12 +675,7 @@ try {
                   ))}
                 </select>
 
-                <select
-                  value={editClientId}
-                  onChange={(e) => setEditClientId(e.target.value)}
-                  required
-                  disabled={loading}
-                >
+                <select value={editClientId} onChange={(e) => setEditClientId(e.target.value)} required disabled={loading}>
                   <option value="">Select Client</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -679,12 +684,7 @@ try {
                   ))}
                 </select>
 
-                <select
-                  value={editServiceId}
-                  onChange={(e) => setEditServiceId(e.target.value)}
-                  required
-                  disabled={loading}
-                >
+                <select value={editServiceId} onChange={(e) => setEditServiceId(e.target.value)} required disabled={loading}>
                   <option value="">Select Service</option>
                   {services.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -711,12 +711,7 @@ try {
                   <button type="submit" disabled={loading}>
                     {loading ? "Saving..." : "Save"}
                   </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={handleCancelEdit}
-                    disabled={loading}
-                  >
+                  <button type="button" className="secondary" onClick={handleCancelEdit} disabled={loading}>
                     Cancel
                   </button>
                 </div>
