@@ -24,3 +24,6 @@ build/
 # OS files
 .DS_Store
 **/.DS_Store
+elsa_local.dump
+*.dump
+*.sql
