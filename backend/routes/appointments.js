@@ -7,9 +7,6 @@ const router = express.Router();
 
 // =======================
 // GET all appointments (optionally by date range)
-// Supports:
-//   GET /api/appointments
-//   GET /api/appointments?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
 // =======================
 router.get("/", authenticateToken, async (req, res) => {
   const role = req.user.role;
@@ -18,7 +15,6 @@ router.get("/", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    // базовый SELECT (тот же что был)
     let query = `
       SELECT 
         a.id,
@@ -35,14 +31,14 @@ router.get("/", authenticateToken, async (req, res) => {
         s.duration
       FROM ${schema}.appointments a
       JOIN ${schema}.masters m ON a.master_id = m.id
-      JOIN ${schema}.clients c ON a.client_id = c.id
+      -- ✅ client может быть NULL для Day Off => LEFT JOIN
+      LEFT JOIN ${schema}.clients c ON a.client_id = c.id
       JOIN ${schema}.services s ON a.service_id = s.id
       WHERE 1=1
     `;
 
     const params = [];
 
-    // ✅ date range filtering (used by frontend getAppointmentsByDateRange)
     if (start_date) {
       params.push(start_date);
       query += ` AND a.start_time::date >= $${params.length}`;
@@ -52,9 +48,6 @@ router.get("/", authenticateToken, async (req, res) => {
       query += ` AND a.start_time::date <= $${params.length}`;
     }
 
-    // ✅ Visibility rules:
-    // - admin: sees all
-    // - master: now also sees all (read-only is enforced by PUT/DELETE checks)
     if (!["admin", "master"].includes(role)) {
       return res.status(403).json({ message: "Forbidden" });
     }
@@ -71,8 +64,6 @@ router.get("/", authenticateToken, async (req, res) => {
 
 // =======================
 // GET single appointment by id
-// NOTE: оставляем прежнюю защиту: мастер может смотреть только свою запись.
-// Если хочешь, можно разрешить мастеру смотреть любую запись и тут тоже.
 // =======================
 router.get("/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
@@ -99,7 +90,8 @@ router.get("/:id", authenticateToken, async (req, res) => {
         s.duration
       FROM ${schema}.appointments a
       JOIN ${schema}.masters m ON a.master_id = m.id
-      JOIN ${schema}.clients c ON a.client_id = c.id
+      -- ✅ client может быть NULL для Day Off => LEFT JOIN
+      LEFT JOIN ${schema}.clients c ON a.client_id = c.id
       JOIN ${schema}.services s ON a.service_id = s.id
       WHERE a.id = $1
       `,
@@ -110,12 +102,8 @@ router.get("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    // Если мастер - проверяем что это его запись
     if (role === "master") {
-      const masterResult = await db.query(
-        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
-        [userId]
-      );
+      const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
 
       if (masterResult.rows.length === 0) {
         return res.status(403).json({ message: "Master profile not found" });
@@ -141,9 +129,10 @@ router.post("/", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const role = req.user.role;
 
-  if (!master_id || !client_id || !service_id || !start_time) {
+  // ✅ client_id is not always required anymore (Day Off)
+  if (!master_id || !service_id || !start_time) {
     return res.status(400).json({
-      message: "master_id, client_id, service_id, start_time required",
+      message: "master_id, service_id, start_time required",
     });
   }
 
@@ -158,9 +147,9 @@ router.post("/", authenticateToken, async (req, res) => {
       schema,
     });
 
-    // Получаем продолжительность услуги
+    // ✅ Load service: duration + name (need name to detect Day Off)
     const serviceResult = await db.query(
-      `SELECT duration FROM ${schema}.services WHERE id = $1`,
+      `SELECT duration, name FROM ${schema}.services WHERE id = $1`,
       [service_id]
     );
 
@@ -168,36 +157,46 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Service not found" });
     }
 
-    // duration ожидаем как "минуты" (например 30)
+    const serviceName = String(serviceResult.rows[0].name || "").trim().toLowerCase();
+    const isDayOff = serviceName === "day off";
+
+    // ✅ Enforce rule:
+    // - Day Off => client_id must be empty/null
+    // - Other services => client_id required
+    const hasClient =
+      client_id !== undefined && client_id !== null && String(client_id).trim() !== "";
+
+    if (isDayOff) {
+      if (hasClient) {
+        return res.status(400).json({
+          message: 'For service "Day Off" client_id must be empty',
+        });
+      }
+    } else {
+      if (!hasClient) {
+        return res.status(400).json({
+          message: "client_id required (except Day Off)",
+        });
+      }
+    }
+
+    // duration expected in minutes
     const durationRaw = serviceResult.rows[0].duration;
     const durationNum = Number(durationRaw);
 
     console.log("SERVICE DURATION RAW:", durationRaw, "-> num:", durationNum);
 
-    // Парсим start_time
     const startDate = new Date(start_time);
-    console.log(
-      "START PARSE:",
-      start_time,
-      "->",
-      startDate.toString(),
-      "isValid:",
-      !isNaN(startDate)
-    );
+    console.log("START PARSE:", start_time, "->", startDate.toString(), "isValid:", !isNaN(startDate));
 
     if (isNaN(startDate)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid start_time format", start_time });
+      return res.status(400).json({ message: "Invalid start_time format", start_time });
     }
 
     if (!Number.isFinite(durationNum) || durationNum <= 0) {
-      return res
-        .status(400)
-        .json({ message: "Invalid service duration", duration: durationRaw });
+      return res.status(400).json({ message: "Invalid service duration", duration: durationRaw });
     }
 
-    // ВАЖНО: приводим И start_time, И end_time к одному формату (UTC ISO строка)
     const start_time_utc = startDate.toISOString();
     const endDate = new Date(startDate.getTime() + durationNum * 60000);
     const end_time_utc = endDate.toISOString();
@@ -210,21 +209,16 @@ router.post("/", authenticateToken, async (req, res) => {
       end_time_utc,
     });
 
-    // Если мастер - проверяем что это его запись
+    // If master - can only create for self
     if (role === "master") {
-      const masterResult = await db.query(
-        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
-        [userId]
-      );
+      const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
 
       if (masterResult.rows.length === 0) {
         return res.status(403).json({ message: "Master profile not found" });
       }
 
       if (master_id !== masterResult.rows[0].id) {
-        return res.status(403).json({
-          message: "Can only create appointments for yourself",
-        });
+        return res.status(403).json({ message: "Can only create appointments for yourself" });
       }
     }
 
@@ -242,7 +236,8 @@ router.post("/", authenticateToken, async (req, res) => {
         status,
         created_at
       `,
-      [master_id, client_id, service_id, start_time_utc, end_time_utc]
+      // ✅ if Day Off -> store NULL
+      [master_id, isDayOff ? null : client_id, service_id, start_time_utc, end_time_utc]
     );
 
     res.status(201).json(rows[0]);
@@ -253,9 +248,7 @@ router.post("/", authenticateToken, async (req, res) => {
     console.error("Error constraint:", err.constraint);
 
     if (err.constraint === "appointments_no_overlap") {
-      return res
-        .status(409)
-        .json({ message: "Appointment overlaps existing booking" });
+      return res.status(409).json({ message: "Appointment overlaps existing booking" });
     }
 
     res.status(500).json({ message: "Server error", details: err.message });
@@ -271,65 +264,67 @@ router.put("/:id", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const role = req.user.role;
 
-  if (!master_id || !client_id || !service_id || !start_time) {
+  // ✅ client_id is not always required anymore (Day Off)
+  if (!master_id || !service_id || !start_time) {
     return res.status(400).json({
-      message: "master_id, client_id, service_id, start_time required",
+      message: "master_id, service_id, start_time required",
     });
   }
 
   try {
     const schema = await resolveTenantSchema(req);
 
-    const checkAppointment = await db.query(
-      `SELECT master_id FROM ${schema}.appointments WHERE id = $1`,
-      [id]
-    );
+    const checkAppointment = await db.query(`SELECT master_id FROM ${schema}.appointments WHERE id = $1`, [id]);
 
     if (checkAppointment.rows.length === 0) {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    // Если мастер - проверяем что это его запись
     if (role === "master") {
-      const masterResult = await db.query(
-        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
-        [userId]
-      );
+      const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
 
       if (masterResult.rows.length === 0) {
         return res.status(403).json({ message: "Master profile not found" });
       }
 
       if (checkAppointment.rows[0].master_id !== masterResult.rows[0].id) {
-        return res.status(403).json({
-          message: "Can only edit your own appointments",
-        });
+        return res.status(403).json({ message: "Can only edit your own appointments" });
       }
     }
 
-    const serviceResult = await db.query(
-      `SELECT duration FROM ${schema}.services WHERE id = $1`,
-      [service_id]
-    );
+    // ✅ load service name + duration
+    const serviceResult = await db.query(`SELECT duration, name FROM ${schema}.services WHERE id = $1`, [service_id]);
 
     if (serviceResult.rows.length === 0) {
       return res.status(404).json({ message: "Service not found" });
+    }
+
+    const serviceName = String(serviceResult.rows[0].name || "").trim().toLowerCase();
+    const isDayOff = serviceName === "day off";
+
+    const hasClient =
+      client_id !== undefined && client_id !== null && String(client_id).trim() !== "";
+
+    if (isDayOff) {
+      if (hasClient) {
+        return res.status(400).json({ message: 'For service "Day Off" client_id must be empty' });
+      }
+    } else {
+      if (!hasClient) {
+        return res.status(400).json({ message: "client_id required (except Day Off)" });
+      }
     }
 
     const durationRaw = serviceResult.rows[0].duration;
     const durationNum = Number(durationRaw);
 
     if (!Number.isFinite(durationNum) || durationNum <= 0) {
-      return res
-        .status(400)
-        .json({ message: "Invalid service duration", duration: durationRaw });
+      return res.status(400).json({ message: "Invalid service duration", duration: durationRaw });
     }
 
     const startDate = new Date(start_time);
     if (isNaN(startDate)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid start_time format", start_time });
+      return res.status(400).json({ message: "Invalid start_time format", start_time });
     }
 
     const start_time_utc = startDate.toISOString();
@@ -353,7 +348,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
       `,
       [
         master_id,
-        client_id,
+        isDayOff ? null : client_id,
         service_id,
         start_time_utc,
         end_time_utc,
@@ -367,9 +362,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     console.error("UPDATE APPOINTMENT ERROR:", err);
 
     if (err.constraint === "appointments_no_overlap") {
-      return res
-        .status(409)
-        .json({ message: "Appointment overlaps existing booking" });
+      return res.status(409).json({ message: "Appointment overlaps existing booking" });
     }
 
     res.status(500).json({ message: "Server error" });
@@ -387,30 +380,21 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    const checkAppointment = await db.query(
-      `SELECT master_id FROM ${schema}.appointments WHERE id = $1`,
-      [id]
-    );
+    const checkAppointment = await db.query(`SELECT master_id FROM ${schema}.appointments WHERE id = $1`, [id]);
 
     if (checkAppointment.rows.length === 0) {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    // Если мастер - проверяем что это его запись
     if (role === "master") {
-      const masterResult = await db.query(
-        `SELECT id FROM ${schema}.masters WHERE user_id = $1`,
-        [userId]
-      );
+      const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
 
       if (masterResult.rows.length === 0) {
         return res.status(403).json({ message: "Master profile not found" });
       }
 
       if (checkAppointment.rows[0].master_id !== masterResult.rows[0].id) {
-        return res.status(403).json({
-          message: "Can only delete your own appointments",
-        });
+        return res.status(403).json({ message: "Can only delete your own appointments" });
       }
     }
 

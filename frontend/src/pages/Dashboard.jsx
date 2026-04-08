@@ -1,12 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  getAppointmentsByDateRange,
-  fetchMasters,
-  fetchClients,
-  fetchServices,
-  fetchMyMaster,
-} from "../api/api";
+import { getAppointmentsByDateRange, fetchMasters, fetchClients, fetchServices, fetchMyMaster } from "../api/api";
 
 import StatsWidget from "./components/StatsWidget";
 import CreateAppointmentModal from "./components/CreateAppointmentModal";
@@ -27,6 +21,28 @@ function decodeToken(token) {
   }
 }
 
+// --- small helpers for chart ---
+const formatCurrencyShort = (value) => {
+  const n = Number(value || 0);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(n);
+};
+
+const formatCurrency = (value) => {
+  const n = Number(value || 0);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+};
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const redirectedRef = useRef(false);
@@ -41,7 +57,7 @@ export default function Dashboard() {
   const tokenPayload = useMemo(() => decodeToken(token), [token]);
   const role = tokenPayload?.role;
   const userEmail = tokenPayload?.email;
-  const userId = tokenPayload?.userId; // IMPORTANT: in your JWT it's userId, not id
+  const userId = tokenPayload?.userId;
   const isAdmin = role === "admin";
   const isMaster = role === "master";
 
@@ -61,7 +77,9 @@ export default function Dashboard() {
   // Date navigation
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // Redirect if no token
+  // Chart hover tooltip
+  const [hoverIdx, setHoverIdx] = useState(null);
+
   useEffect(() => {
     if (!token && !redirectedRef.current) {
       redirectedRef.current = true;
@@ -75,13 +93,11 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Load data when filters / date changes
   useEffect(() => {
     if (token) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, currentDate, selectedMasters, selectedClients, selectedServices, token]);
 
-  // Close filter dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = () => {
       setShowMasterFilter(false);
@@ -97,8 +113,6 @@ export default function Dashboard() {
     try {
       setError("");
 
-      // Clients & Services:
-      // NOTE: if these endpoints are admin-only in your backend, you must also add role-based access there.
       const clientsData = await fetchClients(token);
       const servicesData = await fetchServices(token);
 
@@ -109,26 +123,19 @@ export default function Dashboard() {
       setSelectedServices(servicesData.map((s) => s.id));
 
       if (isAdmin) {
-        // Admin can fetch all masters
         const mastersData = await fetchMasters(token);
         setMasters(mastersData);
         setSelectedMasters(mastersData.map((m) => m.id));
       } else {
-        // Master must NOT call /masters (admin-only). Fetch only his own master profile.
-        // Requires backend route GET /api/masters/me and api.js export fetchMyMaster().
         try {
           const me = await fetchMyMaster(token);
           setMasters(me ? [me] : []);
           setSelectedMasters(me?.id ? [me.id] : []);
         } catch (e) {
-          // If master profile doesn't exist in schema -> appointments endpoint will also fail.
           console.error("Failed to fetch /masters/me:", e);
           setMasters([]);
           setSelectedMasters([]);
-          setError(
-            e?.message ||
-              "Master profile not found. Ask admin to create master profile in this branch/schema."
-          );
+          setError(e?.message || "Master profile not found. Ask admin to create master profile in this branch/schema.");
         }
       }
     } catch (err) {
@@ -137,7 +144,6 @@ export default function Dashboard() {
     }
   };
 
-  // Date range for API
   const getDateRangeForAPI = () => {
     const date = new Date(currentDate);
 
@@ -163,7 +169,6 @@ export default function Dashboard() {
       };
     }
 
-    // fallback
     const start = date.toISOString().split("T")[0];
     return { start, end: start };
   };
@@ -226,24 +231,17 @@ export default function Dashboard() {
     setCurrentDate(new Date());
   };
 
-  // Filter toggles
   const toggleMaster = (masterId) => {
-    if (!isAdmin) return; // masters filter locked for master role
-    setSelectedMasters((prev) =>
-      prev.includes(masterId) ? prev.filter((id) => id !== masterId) : [...prev, masterId]
-    );
+    if (!isAdmin) return;
+    setSelectedMasters((prev) => (prev.includes(masterId) ? prev.filter((id) => id !== masterId) : [...prev, masterId]));
   };
 
   const toggleClient = (clientId) => {
-    setSelectedClients((prev) =>
-      prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]
-    );
+    setSelectedClients((prev) => (prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]));
   };
 
   const toggleService = (serviceId) => {
-    setSelectedServices((prev) =>
-      prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]
-    );
+    setSelectedServices((prev) => (prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]));
   };
 
   const toggleAllMasters = () => {
@@ -273,15 +271,13 @@ export default function Dashboard() {
       setError("");
     } catch (err) {
       console.error("Failed to load dashboard data:", err);
-
-      // For master role, the most common error is missing master profile in masters table
       setError(err.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
   };
 
-  // ---- Metrics + revenue series derived from appointments + services ----
+  // ---- Revenue derived from appointments + services ----
   const serviceMap = useMemo(() => {
     const map = {};
     services.forEach((s) => {
@@ -292,6 +288,7 @@ export default function Dashboard() {
 
   const dateRange = getDateRangeForAPI();
 
+  // allow Day Off (client_id null) to pass client filter
   const filteredCompletedAppointments = useMemo(() => {
     if (!dateRange) return [];
 
@@ -304,8 +301,11 @@ export default function Dashboard() {
       const dateMatch = appointmentDate >= startDate && appointmentDate <= endDate;
 
       const masterMatch = selectedMasters.length === 0 || selectedMasters.includes(apt.master_id);
-      const clientMatch = selectedClients.length === 0 || selectedClients.includes(apt.client_id);
+
+      const clientMatch = !apt.client_id || selectedClients.length === 0 || selectedClients.includes(apt.client_id);
+
       const serviceMatch = selectedServices.length === 0 || selectedServices.includes(apt.service_id);
+
       const statusMatch = apt.status === "completed";
 
       return dateMatch && masterMatch && clientMatch && serviceMatch && statusMatch;
@@ -313,10 +313,7 @@ export default function Dashboard() {
   }, [appointments, dateRange, selectedMasters, selectedClients, selectedServices]);
 
   const metrics = useMemo(() => {
-    const totalRevenue = filteredCompletedAppointments.reduce(
-      (sum, apt) => sum + (serviceMap[apt.service_id] || 0),
-      0
-    );
+    const totalRevenue = filteredCompletedAppointments.reduce((sum, apt) => sum + (serviceMap[apt.service_id] || 0), 0);
     const totalAppointments = filteredCompletedAppointments.length;
     const avgCheck = totalAppointments > 0 ? totalRevenue / totalAppointments : 0;
 
@@ -331,10 +328,7 @@ export default function Dashboard() {
     });
 
     const topMaster =
-      Object.values(masterRevenue).sort((a, b) => b.revenue - a.revenue)[0] || {
-        name: "N/A",
-        revenue: 0,
-      };
+      Object.values(masterRevenue).sort((a, b) => b.revenue - a.revenue)[0] || { name: "N/A", revenue: 0 };
 
     return {
       totalRevenue,
@@ -344,7 +338,30 @@ export default function Dashboard() {
     };
   }, [filteredCompletedAppointments, serviceMap]);
 
-  // Revenue chart buckets (simple, no extra libs)
+ 
+const topClient = useMemo(() => {
+  if (!isMaster) return null; // Только для мастера
+
+  const clientCounts = {};
+  filteredCompletedAppointments.forEach((apt) => {
+    if (apt.client_id) {
+      clientCounts[apt.client_id] = (clientCounts[apt.client_id] || 0) + 1;
+    }
+  });
+
+  let top = { id: null, count: 0 };
+  Object.entries(clientCounts).forEach(([id, count]) => {
+    if (count > top.count) top = { id, count };
+  });
+
+  const clientObj = clients.find((c) => c.id === top.id);
+  return clientObj
+    ? { name: clientObj.name, count: top.count }
+    : { name: "N/A", count: 0 };
+}, [filteredCompletedAppointments, clients, isMaster]);
+
+  // ======= LINE CHART + FORECAST =======
+  // Build daily buckets for actuals in selected period
   const revenueSeries = useMemo(() => {
     if (!dateRange) return [];
 
@@ -361,12 +378,11 @@ export default function Dashboard() {
 
     const labelFor = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-    // create buckets for each day in range
     const buckets = [];
     const map = new Map();
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const k = keyFor(d);
-      const item = { key: k, label: labelFor(d), value: 0 };
+      const item = { key: k, label: labelFor(d), value: 0, isForecast: false };
       buckets.push(item);
       map.set(k, item);
     }
@@ -381,27 +397,135 @@ export default function Dashboard() {
     return buckets;
   }, [dateRange, filteredCompletedAppointments, serviceMap]);
 
-  // Upcoming appointments (planned, future, filtered)
+  // Forecast: extend line for N days based on last 7-day moving average
+  const forecastDays = useMemo(() => {
+    if (period === "day") return 7;
+    if (period === "week") return 7;
+    return 10; // month
+  }, [period]);
+
+  const revenueWithForecast = useMemo(() => {
+    if (revenueSeries.length === 0) return [];
+
+    const actual = revenueSeries;
+    const last = actual[actual.length - 1];
+    const avgWindow = 7;
+
+    const avg =
+      actual.slice(Math.max(0, actual.length - avgWindow)).reduce((s, p) => s + p.value, 0) /
+      Math.min(avgWindow, actual.length);
+
+    const startDate = new Date(last.key);
+    const out = [...actual];
+
+    for (let i = 1; i <= forecastDays; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const key = `${yyyy}-${mm}-${dd}`;
+      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+      // simple gentle trend: approach avg + small drift using last delta
+      const prev = out[out.length - 1];
+      const delta = prev && !prev.isForecast && out.length >= 2 ? prev.value - out[out.length - 2].value : 0;
+      const drift = clamp(delta * 0.25, -avg * 0.15, avg * 0.15);
+
+      out.push({
+        key,
+        label,
+        value: Math.max(0, avg + drift),
+        isForecast: true,
+      });
+    }
+
+    return out;
+  }, [revenueSeries, forecastDays, period]);
+
+  const maxY = useMemo(() => Math.max(1, ...revenueWithForecast.map((p) => p.value)), [revenueWithForecast]);
+
+  const chart = useMemo(() => {
+    const points = revenueWithForecast;
+    if (points.length === 0) return null;
+
+    const w = 920;
+    const h = 240;
+    const pad = 20;
+
+    const xFor = (i) => pad + (i * (w - pad * 2)) / Math.max(1, points.length - 1);
+    const yFor = (v) => pad + (h - pad * 2) * (1 - v / maxY);
+
+    const actualPoints = points.filter((p) => !p.isForecast);
+    const forecastPoints = points.filter((p) => p.isForecast);
+
+    const pathFor = (arr, offsetIndex = 0) => {
+      return arr
+        .map((p, idx) => {
+          const i = offsetIndex + idx;
+          const x = xFor(i);
+          const y = yFor(p.value);
+          return `${idx === 0 ? "M" : "L"} ${x} ${y}`;
+        })
+        .join(" ");
+    };
+
+    const actualPath = pathFor(actualPoints, 0);
+    const forecastPath = forecastPoints.length > 0 ? pathFor(forecastPoints, actualPoints.length - 1) : "";
+
+    const areaPath =
+      actualPoints.length > 0
+        ? `${actualPath} L ${xFor(actualPoints.length - 1)} ${h - pad} L ${xFor(0)} ${h - pad} Z`
+        : "";
+
+    return {
+      w,
+      h,
+      pad,
+      points,
+      actualPoints,
+      forecastPoints,
+      xFor,
+      yFor,
+      actualPath,
+      forecastPath,
+      areaPath,
+    };
+  }, [revenueWithForecast, maxY]);
+
+  // Selected point (tooltip)
+  const hoveredPoint = useMemo(() => {
+    if (hoverIdx == null || !chart) return null;
+    const p = chart.points[hoverIdx];
+    if (!p) return null;
+    return p;
+  }, [hoverIdx, chart]);
+
+  const maxRevenue = Math.max(1, ...revenueSeries.map((p) => p.value));
+
+  const masterId = useMemo(() => isMaster && masters.length > 0 ? masters[0].id : null, [isMaster, masters]);
   const upcomingAppointments = useMemo(() => {
-    const now = new Date();
+     const now = new Date();
+    if (isMaster && !masterId) return []; 
+console.log(appointments, masters)
+  return appointments
+    .filter((apt) => {
+      const start = new Date(apt.start_time);
+      const isFuture = start >= now;
+  
+      const masterMatch =
+        isMaster
+          ? apt.master_id === masters[0]?.id // Только индекс [0] для мастера
+          : selectedMasters.length === 0 || selectedMasters.includes(apt.master_id);
 
-    const upcoming = appointments
-      .filter((apt) => {
-        const start = new Date(apt.start_time);
-        const isFuture = start >= now;
-        const statusMatch = apt.status === "planned";
+      const clientMatch = !apt.client_id || selectedClients.length === 0 || selectedClients.includes(apt.client_id);
+      const serviceMatch = selectedServices.length === 0 || selectedServices.includes(apt.service_id);
 
-        const masterMatch = selectedMasters.length === 0 || selectedMasters.includes(apt.master_id);
-        const clientMatch = selectedClients.length === 0 || selectedClients.includes(apt.client_id);
-        const serviceMatch = selectedServices.length === 0 || selectedServices.includes(apt.service_id);
-
-        return isFuture && statusMatch && masterMatch && clientMatch && serviceMatch;
-      })
-      .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-      .slice(0, 8);
-
-    return upcoming;
-  }, [appointments, selectedMasters, selectedClients, selectedServices]);
+      return isFuture && masterMatch && clientMatch && serviceMatch;
+    })
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+    .slice(0, 8);
+}, [appointments, selectedMasters, selectedClients, selectedServices, isMaster, masters]);
 
   const formatDateTime = (dateString) => {
     const date = new Date(dateString);
@@ -414,10 +538,11 @@ export default function Dashboard() {
   };
 
   const getMasterName = (id) => masters.find((m) => m.id === id)?.name || "Unknown";
-  const getClientName = (id) => clients.find((c) => c.id === id)?.name || "Unknown";
+  const getClientName = (id) => {
+    if (!id) return "—";
+    return clients.find((c) => c.id === id)?.name || "Unknown";
+  };
   const getServiceName = (id) => services.find((s) => s.id === id)?.name || "Unknown";
-
-  const maxRevenue = Math.max(1, ...revenueSeries.map((p) => p.value));
 
   return (
     <div className="dashboard-container">
@@ -454,7 +579,6 @@ export default function Dashboard() {
 
         <div className="topbar-right">
           <div className="filters-group">
-            {/* ✅ Masters filter: admin only */}
             {isAdmin && (
               <div className="filter-item">
                 <button
@@ -478,11 +602,7 @@ export default function Dashboard() {
                     </label>
                     {masters.map((master) => (
                       <label key={master.id} className="filter-option">
-                        <input
-                          type="checkbox"
-                          checked={selectedMasters.includes(master.id)}
-                          onChange={() => toggleMaster(master.id)}
-                        />
+                        <input type="checkbox" checked={selectedMasters.includes(master.id)} onChange={() => toggleMaster(master.id)} />
                         <span>{master.name}</span>
                       </label>
                     ))}
@@ -513,11 +633,7 @@ export default function Dashboard() {
                   </label>
                   {clients.map((client) => (
                     <label key={client.id} className="filter-option">
-                      <input
-                        type="checkbox"
-                        checked={selectedClients.includes(client.id)}
-                        onChange={() => toggleClient(client.id)}
-                      />
+                      <input type="checkbox" checked={selectedClients.includes(client.id)} onChange={() => toggleClient(client.id)} />
                       <span>{client.name}</span>
                     </label>
                   ))}
@@ -547,83 +663,174 @@ export default function Dashboard() {
                   </label>
                   {services.map((service) => (
                     <label key={service.id} className="filter-option">
-                      <input
-                        type="checkbox"
-                        checked={selectedServices.includes(service.id)}
-                        onChange={() => toggleService(service.id)}
-                      />
+                      <input type="checkbox" checked={selectedServices.includes(service.id)} onChange={() => toggleService(service.id)} />
                       <span>{service.name}</span>
                     </label>
                   ))}
                 </div>
               )}
             </div>
+
+            {isMaster && (
+              <div className="muted" style={{ marginLeft: 12 }}>
+                {userEmail || userId}
+              </div>
+            )}
           </div>
-
-          {/* Optional info for master */}
-          {isMaster && (
-            <div className="muted" style={{ marginLeft: 12 }}>
-              {userEmail || userId}
-            </div>
-          )}
         </div>
-      </div>
 
-      {error && <p className="error-message">{error}</p>}
+        {error && <p className="error-message">{error}</p>}
+      </div>
 
       {/* KPI Widgets */}
       <div className="kpi-grid">
-        <StatsWidget
-          title="Revenue"
-          value={`$${(metrics.totalRevenue || 0).toFixed(0)}`}
-          subtitle="All confirmed & completed"
-          trend=""
-          icon={revenueIcon}
-        />
-        <StatsWidget
-          title="Appointments"
-          value={metrics.totalAppointments || 0}
-          subtitle="Completed"
-          trend=""
-          icon={appointmentsIcon}
-        />
-        <StatsWidget
-          title="Average Check"
-          value={`$${(metrics.avgCheck || 0).toFixed(0)}`}
-          subtitle="Per appointment"
-          icon={avgCheckIcon}
-        />
-        <StatsWidget
-          title="Top Master"
-          value={metrics.topMaster?.name || "N/A"}
-          subtitle={`$${(metrics.topMaster?.revenue || 0).toFixed(0)} revenue`}
-          icon={topMasterIcon}
-        />
-      </div>
+        <StatsWidget title="Revenue" value={formatCurrencyShort(metrics.totalRevenue)} subtitle="In selected period" trend="" icon={revenueIcon} />
+        <StatsWidget title="Appointments" value={metrics.totalAppointments || 0} subtitle="Completed" trend="" icon={appointmentsIcon} />
+        <StatsWidget title="Average Check" value={formatCurrencyShort(metrics.avgCheck)} subtitle="Per appointment" icon={avgCheckIcon} />
+        {isMaster
+    ? <StatsWidget title="Top Client" value={topClient?.name || "N/A"} subtitle={`${topClient?.count || 0} visits`} icon={topMasterIcon} />
+    : <StatsWidget title="Top Master" value={metrics.topMaster?.name || "N/A"} subtitle={`${formatCurrencyShort(metrics.topMaster?.revenue || 0)} revenue`} icon={topMasterIcon} />
+  }
+   </div>
 
-      {/* Sections */}
       <div className="dashboard-sections">
-        {/* 1) Revenue chart */}
+        {/* Revenue line chart with forecast (SVG, no libs) */}
         <section className="card dashboard-section revenue-section">
-          <div className="dashboard-section-header">
-            <h3>Revenue</h3>
-            <span className="muted">{getDateRangeText()}</span>
+          <div className="dashboard-section-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+            <div>
+              <h3 style={{ marginBottom: 6 }}>Revenue</h3>
+              <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.02em" }}>
+                {formatCurrencyShort(metrics.totalRevenue)}
+              </div>
+              <div className="muted" style={{ marginTop: 6 }}>
+                in selected period • {getDateRangeText()}
+              </div>
+            </div>
+
+            <div className="muted" style={{ fontWeight: 800 }}>
+              {period === "day" ? "Days" : period === "week" ? "Days" : "Days"}
+            </div>
           </div>
 
-          <div className="revenue-chart" role="img" aria-label="Revenue chart">
-            {revenueSeries.map((p) => {
-              const h = Math.round((p.value / maxRevenue) * 100);
-              return (
-                <div className="revenue-bar" key={p.key} title={`${p.label}: $${p.value.toFixed(0)}`}>
-                  <div className="revenue-bar-fill" style={{ height: `${h}%` }} />
-                  <div className="revenue-bar-label">{p.label}</div>
+          {!chart ? (
+            <div className="muted" style={{ padding: 16 }}>
+              No data
+            </div>
+          ) : (
+            <div style={{ position: "relative", marginTop: 18 }}>
+              {/* Tooltip */}
+              {hoveredPoint && hoverIdx != null && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${(chart.xFor(hoverIdx) / chart.w) * 100}%`,
+                    top: 0,
+                    transform: "translate(-50%, -10px)",
+                    background: "#e8f1ff",
+                    border: "1px solid #c7dbff",
+                    color: "#0b2559",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    minWidth: 150,
+                    boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <div style={{ fontSize: 20, fontWeight: 900 }}>
+                    {formatCurrencyShort(hoveredPoint.value)}
+                  </div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    {hoveredPoint.label}
+                    {hoveredPoint.isForecast ? " • forecast" : ""}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              )}
+
+              <svg
+                viewBox={`0 0 ${chart.w} ${chart.h}`}
+                width="100%"
+                height={chart.h}
+                style={{ display: "block" }}
+                onMouseLeave={() => setHoverIdx(null)}
+              >
+                {/* grid lines */}
+                {Array.from({ length: 5 }).map((_, i) => {
+                  const y = chart.pad + ((chart.h - chart.pad * 2) * i) / 4;
+                  return <line key={i} x1={chart.pad} x2={chart.w - chart.pad} y1={y} y2={y} stroke="#eef2f7" strokeWidth="1" />;
+                })}
+
+                {/* area under actual */}
+                <path d={chart.areaPath} fill="rgba(59,130,246,0.10)" stroke="none" />
+
+                {/* actual line */}
+                <path d={chart.actualPath} fill="none" stroke="#3b82f6" strokeWidth="3" />
+
+                {/* forecast line (dashed) */}
+                {chart.forecastPoints.length > 0 && (
+                  <path
+                    d={chart.forecastPath}
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth="3"
+                    strokeDasharray="6 6"
+                    opacity="0.9"
+                  />
+                )}
+
+                {/* hover targets */}
+                {chart.points.map((p, i) => {
+                  const x = chart.xFor(i);
+                  const y = chart.yFor(p.value);
+
+                  return (
+                    <g key={p.key}>
+                      {/* invisible hit area */}
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r="10"
+                        fill="transparent"
+                        onMouseEnter={() => setHoverIdx(i)}
+                      />
+                      {/* visible dot only for hovered */}
+                      {hoverIdx === i && (
+                        <>
+                          <circle cx={x} cy={y} r="6" fill="#3b82f6" />
+                          <circle cx={x} cy={y} r="10" fill="rgba(59,130,246,0.15)" />
+                        </>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+
+              {/* x-axis labels: show ~6 labels */}
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, color: "#6b7280", fontWeight: 700, fontSize: 12 }}>
+                {(() => {
+                  const pts = revenueWithForecast;
+                  const count = pts.length;
+                  const steps = 5;
+                  const out = [];
+                  for (let i = 0; i <= steps; i++) {
+                    const idx = Math.round((i * (count - 1)) / steps);
+                    out.push(
+                      <span key={i} style={{ width: `${100 / (steps + 1)}%`, textAlign: i === 0 ? "left" : i === steps ? "right" : "center" }}>
+                        {pts[idx]?.label || ""}
+                      </span>
+                    );
+                  }
+                  return out;
+                })()}
+              </div>
+
+              <div className="muted" style={{ marginTop: 8, fontWeight: 700 }}>
+                Solid line = actual • Dashed line = forecast
+              </div>
+            </div>
+          )}
         </section>
 
-        {/* 2) Upcoming appointments */}
+        {/* Upcoming appointments */}
         <section className="card dashboard-section">
           <div className="dashboard-section-header dashboard-upcoming-header">
             <div className="dashboard-upcoming-title">
@@ -659,7 +866,6 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* Create Appointment Modal */}
       {showCreateModal && (
         <CreateAppointmentModal
           onClose={() => setShowCreateModal(false)}

@@ -9,8 +9,6 @@ const router = express.Router();
 // GET all partners (with optional filter by type)
 // =======================
 router.get("/", authenticateToken, async (req, res) => {
-
-
   const { type } = req.query; // 'customer', 'vendor', or undefined for all
 
   try {
@@ -28,6 +26,7 @@ router.get("/", authenticateToken, async (req, res) => {
         bank_name,
         bank_account,
         bank_code,
+        photo_url,
         created_at 
       FROM ${schema}.clients
     `;
@@ -40,10 +39,10 @@ router.get("/", authenticateToken, async (req, res) => {
 
     query += ` ORDER BY created_at DESC`;
     const { rows } = await db.query(query);
-    res.json(rows);
+    return res.json(rows);
   } catch (err) {
     console.error("FETCH PARTNERS ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -73,6 +72,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
         bank_name,
         bank_account,
         bank_code,
+        photo_url,
         created_at 
       FROM ${schema}.clients 
       WHERE id = $1
@@ -84,10 +84,10 @@ router.get("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Partner not found" });
     }
 
-    res.json(rows[0]);
+    return res.json(rows[0]);
   } catch (err) {
     console.error("FETCH PARTNER ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -113,7 +113,7 @@ router.post("/", authenticateToken, async (req, res) => {
 
   if (!name || !type) {
     return res.status(400).json({
-      message: 'name and type (customer/vendor) required',
+      message: "name and type (customer/vendor) required",
     });
   }
 
@@ -128,15 +128,10 @@ router.post("/", authenticateToken, async (req, res) => {
 
     // Проверяем не существует ли партнер с таким номером телефона
     if (phone) {
-      const exists = await db.query(
-        `SELECT id FROM ${schema}.clients WHERE phone = $1`,
-        [phone]
-      );
+      const exists = await db.query(`SELECT id FROM ${schema}.clients WHERE phone = $1`, [phone]);
 
       if (exists.rows.length > 0) {
-        return res
-          .status(409)
-          .json({ message: "Partner with this phone already exists" });
+        return res.status(409).json({ message: "Partner with this phone already exists" });
       }
     }
 
@@ -151,9 +146,10 @@ router.post("/", authenticateToken, async (req, res) => {
         vat_number,
         bank_name,
         bank_account,
-        bank_code
+        bank_code,
+        photo_url
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING 
         id, 
         name, 
@@ -165,6 +161,7 @@ router.post("/", authenticateToken, async (req, res) => {
         bank_name,
         bank_account,
         bank_code,
+        photo_url,
         created_at
       `,
       [
@@ -177,13 +174,14 @@ router.post("/", authenticateToken, async (req, res) => {
         bank_name || null,
         bank_account || null,
         bank_code || null,
+        null,
       ]
     );
 
-    res.status(201).json(rows[0]);
+    return res.status(201).json(rows[0]);
   } catch (err) {
     console.error("CREATE PARTNER ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -209,25 +207,18 @@ router.put("/:id", authenticateToken, async (req, res) => {
   } = req.body;
 
   if (!name || !type) {
-    return res.status(400).json({
-      message: "name and type required",
-    });
+    return res.status(400).json({ message: "name and type required" });
   }
 
   if (!["customer", "vendor"].includes(type)) {
-    return res.status(400).json({
-      message: 'type must be "customer" or "vendor"',
-    });
+    return res.status(400).json({ message: 'type must be "customer" or "vendor"' });
   }
 
   try {
     const schema = await resolveTenantSchema(req);
 
     // Проверяем существует ли партнер
-    const checkPartner = await db.query(
-      `SELECT id, phone FROM ${schema}.clients WHERE id = $1`,
-      [id]
-    );
+    const checkPartner = await db.query(`SELECT id, phone FROM ${schema}.clients WHERE id = $1`, [id]);
 
     if (checkPartner.rows.length === 0) {
       return res.status(404).json({ message: "Partner not found" });
@@ -245,7 +236,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
       }
     }
 
-    // Обновляем партне��а
+    // Обновляем партнера
     const { rows } = await db.query(
       `
       UPDATE ${schema}.clients
@@ -271,6 +262,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
         bank_name,
         bank_account,
         bank_code,
+        photo_url,
         created_at
       `,
       [
@@ -287,10 +279,10 @@ router.put("/:id", authenticateToken, async (req, res) => {
       ]
     );
 
-    res.json(rows[0]);
+    return res.json(rows[0]);
   } catch (err) {
     console.error("UPDATE PARTNER ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -307,10 +299,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
-    const checkPartner = await db.query(
-      `SELECT id FROM ${schema}.clients WHERE id = $1`,
-      [id]
-    );
+    const checkPartner = await db.query(`SELECT id FROM ${schema}.clients WHERE id = $1`, [id]);
 
     if (checkPartner.rows.length === 0) {
       return res.status(404).json({ message: "Partner not found" });
@@ -318,10 +307,10 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 
     await db.query(`DELETE FROM ${schema}.clients WHERE id = $1`, [id]);
 
-    res.json({ message: "Partner deleted successfully" });
+    return res.json({ message: "Partner deleted successfully" });
   } catch (err) {
     console.error("DELETE PARTNER ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 

@@ -58,7 +58,7 @@ Cancelled Appointments:
 Please analyze this data and provide insights.`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "mistralai/mistral-small-2603",
       max_tokens: 1024,
       system: reportSummaryPrompt,
       messages: [
@@ -101,7 +101,7 @@ async function generateAdminChatResponse(context) {
     console.log("Generating admin chat response...");
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "mistralai/mistral-small-2603",
       max_tokens: 512,
       messages: [
         {

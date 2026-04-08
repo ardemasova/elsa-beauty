@@ -37,7 +37,6 @@ export default function Calendar({
   const [mastersMap, setMastersMap] = useState({});
   const calendarRef = useRef(null);
 
-  // Маппинг периода на FullCalendar view
   const getCalendarView = () => {
     switch (period) {
       case "day":
@@ -51,7 +50,6 @@ export default function Calendar({
     }
   };
 
-  // Загружаем мастеров/мастера (для цветов) один раз
   useEffect(() => {
     if (!token) return;
     loadMasters();
@@ -65,7 +63,6 @@ export default function Calendar({
       if (isAdmin) {
         masters = await fetchMasters(token);
       } else {
-        // ✅ master role cannot call /masters (admin-only), use /masters/me
         const me = await fetchMyMaster(token);
         masters = me ? [me] : [];
       }
@@ -84,14 +81,12 @@ export default function Calendar({
     }
   };
 
-  // Загрузка appointments когда готов token/filters/dateRange
   useEffect(() => {
     if (!token) return;
     loadAppointments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, dateRange, selectedMasters, selectedClients, selectedServices, mastersMap]);
 
-  // Обновить вид календаря при смене периода
   useEffect(() => {
     if (!calendarRef.current) return;
     const calendarApi = calendarRef.current.getApi();
@@ -99,14 +94,12 @@ export default function Calendar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
-  // Перейти на нужную дату
   useEffect(() => {
     if (!calendarRef.current || !currentDate) return;
     const calendarApi = calendarRef.current.getApi();
     calendarApi.gotoDate(currentDate);
   }, [currentDate]);
 
-  // Функция для преобразования hex в rgba (полупрозрачный)
   const hexToRgba = (hex, alpha = 0.3) => {
     const cleanHex = String(hex || "#000000").replace("#", "");
 
@@ -128,22 +121,28 @@ export default function Calendar({
         return;
       }
 
-      // Фильтруем по выбранным фильтрам
+      // ✅ FIX: allow client_id = null (Day Off) to pass client filter
       const filtered = appointments.filter((apt) => {
         const masterMatch = selectedMasters.length === 0 || selectedMasters.includes(apt.master_id);
-        const clientMatch = selectedClients.length === 0 || selectedClients.includes(apt.client_id);
+
+        const clientMatch =
+          !apt.client_id || selectedClients.length === 0 || selectedClients.includes(apt.client_id);
+
         const serviceMatch = selectedServices.length === 0 || selectedServices.includes(apt.service_id);
+
         return masterMatch && clientMatch && serviceMatch;
       });
 
-      // Преобразуем в FullCalendar формат
       const calendarEvents = filtered.map((apt) => {
         const masterColor = mastersMap[apt.master_id]?.color || "#3b82f6";
         const semitransparentColor = hexToRgba(masterColor, 0.25);
 
+        const titleClientPart = apt.client_name ? ` (${apt.client_name})` : "";
+        const titleServicePart = apt.service_name || "Service";
+
         return {
           id: apt.id,
-          title: `${apt.master_name} - ${apt.service_name}`,
+          title: `${apt.master_name} - ${titleServicePart}${titleClientPart}`,
           start: apt.start_time,
           end: apt.end_time,
           backgroundColor: semitransparentColor,
@@ -151,7 +150,7 @@ export default function Calendar({
           textColor: "#1f2937",
           extendedProps: {
             masterName: apt.master_name,
-            clientName: apt.client_name,
+            clientName: apt.client_name || null,
             serviceName: apt.service_name,
             servicePrice: apt.service_price,
             status: apt.status,
@@ -201,11 +200,7 @@ export default function Calendar({
       </div>
 
       {selectedEvent && (
-        <AppointmentModal
-          event={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
-          onUpdate={loadAppointments}
-        />
+        <AppointmentModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={loadAppointments} />
       )}
     </div>
   );

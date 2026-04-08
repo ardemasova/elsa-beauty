@@ -1,12 +1,50 @@
 import { useState, useEffect } from "react";
-import {
-  fetchClientsByType,
-  createClient,
-  updateClient,
-  deleteClient,
-} from "../api/api";
+import { fetchClientsByType, createClient, updateClient, deleteClient } from "../api/api";
+import PhotoUpload from "../components/PhotoUpload";
+import { toAbsoluteUploadUrl } from "../api/uploadApi";
 import * as XLSX from "xlsx";
 import "./Clients.css";
+
+const AVATAR_SIZE = 54;
+
+function AvatarCell({ url, alt }) {
+  return url ? (
+    <img
+      src={toAbsoluteUploadUrl(url)}
+      alt={alt}
+      style={{
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
+        borderRadius: "50%",
+        objectFit: "cover",
+        border: "2px solid rgba(0, 80, 103, 0.2)",
+        display: "block",
+        margin: "0 auto",
+      }}
+      loading="lazy"
+    />
+  ) : (
+    <div
+      style={{
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
+        borderRadius: "50%",
+        background: "#f3f4f6",
+        border: "2px dashed rgba(0, 80, 103, 0.2)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        margin: "0 auto",
+        color: "#9ca3af",
+        fontWeight: 700,
+        fontSize: 12,
+      }}
+      title="No photo"
+    >
+      —
+    </div>
+  );
+}
 
 export default function Clients() {
   const [partners, setPartners] = useState([]);
@@ -30,6 +68,23 @@ export default function Clients() {
     bank_code: "",
   });
 
+  // keep current partner in state (for current photo_url)
+  const [editingPartner, setEditingPartner] = useState(null);
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      type: "customer",
+      phone: "",
+      email: "",
+      address: "",
+      vat_number: "",
+      bank_name: "",
+      bank_account: "",
+      bank_code: "",
+    });
+  };
+
   const loadPartners = async () => {
     try {
       const type = activeTab === "all" ? null : activeTab;
@@ -44,6 +99,11 @@ export default function Clients() {
     loadPartners();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // (optional debug)
+  // useEffect(() => {
+  //   if (partners.length) console.log("clients sample:", partners[0]);
+  // }, [partners]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -62,24 +122,36 @@ export default function Clients() {
       if (editingId) {
         await updateClient(token, editingId, formData);
         setEditingId(null);
+        setEditingPartner(null);
+
+        setShowModal(false);
+        resetForm();
+        loadPartners();
       } else {
-        await createClient(token, formData);
+        const created = await createClient(token, formData);
+
+        setShowModal(false);
+        await loadPartners();
+
+        if (created?.id) {
+          setEditingId(created.id);
+          setEditingPartner(created);
+          setFormData({
+            name: created.name ?? formData.name ?? "",
+            type: created.type ?? formData.type ?? "customer",
+            phone: created.phone ?? formData.phone ?? "",
+            email: created.email ?? formData.email ?? "",
+            address: created.address ?? formData.address ?? "",
+            vat_number: created.vat_number ?? formData.vat_number ?? "",
+            bank_name: created.bank_name ?? formData.bank_name ?? "",
+            bank_account: created.bank_account ?? formData.bank_account ?? "",
+            bank_code: created.bank_code ?? formData.bank_code ?? "",
+          });
+          setShowModal(true);
+        } else {
+          resetForm();
+        }
       }
-
-      setFormData({
-        name: "",
-        type: "customer",
-        phone: "",
-        email: "",
-        address: "",
-        vat_number: "",
-        bank_name: "",
-        bank_account: "",
-        bank_code: "",
-      });
-
-      setShowModal(false);
-      loadPartners();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -100,12 +172,11 @@ export default function Clients() {
       bank_code: partner.bank_code || "",
     });
     setEditingId(partner.id);
+    setEditingPartner(partner);
     setShowModal(true);
   };
 
-  const handleDeleteClick = (id) => {
-    setDeleteConfirmId(id);
-  };
+  const handleDeleteClick = (id) => setDeleteConfirmId(id);
 
   const handleConfirmDelete = async () => {
     setError("");
@@ -125,17 +196,8 @@ export default function Clients() {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingId(null);
-    setFormData({
-      name: "",
-      type: "customer",
-      phone: "",
-      email: "",
-      address: "",
-      vat_number: "",
-      bank_name: "",
-      bank_account: "",
-      bank_code: "",
-    });
+    setEditingPartner(null);
+    resetForm();
   };
 
   const formatDate = (dateString) => {
@@ -147,7 +209,6 @@ export default function Clients() {
     });
   };
 
-  // ======= Excel export (current tab data only) =======
   const handleExportExcel = () => {
     const rows = partners.map((p) => ({
       ID: p.id,
@@ -160,6 +221,7 @@ export default function Clients() {
       "Bank Name": p.bank_name || "",
       "Bank Account": p.bank_account || "",
       "Bank Code": p.bank_code || "",
+      Photo: p.photo_url || "",
       Created: p.created_at ? formatDate(p.created_at) : "",
     }));
 
@@ -177,7 +239,15 @@ export default function Clients() {
         <h1>Business Partners</h1>
 
         <div className="partners-header-actions">
-          <button className="btn-primary" onClick={() => setShowModal(true)}>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setEditingId(null);
+              setEditingPartner(null);
+              resetForm();
+              setShowModal(true);
+            }}
+          >
             + New Partner
           </button>
 
@@ -197,22 +267,13 @@ export default function Clients() {
 
       {/* Tabs */}
       <div className="partners-tabs">
-        <button
-          className={`tab ${activeTab === "customer" ? "active" : ""}`}
-          onClick={() => setActiveTab("customer")}
-        >
+        <button className={`tab ${activeTab === "customer" ? "active" : ""}`} onClick={() => setActiveTab("customer")}>
           👥 Customers
         </button>
-        <button
-          className={`tab ${activeTab === "vendor" ? "active" : ""}`}
-          onClick={() => setActiveTab("vendor")}
-        >
+        <button className={`tab ${activeTab === "vendor" ? "active" : ""}`} onClick={() => setActiveTab("vendor")}>
           🏭 Vendors
         </button>
-        <button
-          className={`tab ${activeTab === "all" ? "active" : ""}`}
-          onClick={() => setActiveTab("all")}
-        >
+        <button className={`tab ${activeTab === "all" ? "active" : ""}`} onClick={() => setActiveTab("all")}>
           📋 All
         </button>
       </div>
@@ -222,6 +283,39 @@ export default function Clients() {
         <div className="modal-overlay" onClick={handleCloseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>{editingId ? "Edit Partner" : "New Partner"}</h2>
+
+            {/* Photo upload (only in Edit mode, because we need id) */}
+            {editingId && (
+              <div className="form-group">
+                <label>Photo</label>
+                <PhotoUpload
+                  entity="clients"
+                  id={editingId}
+                  token={token}
+                  currentUrl={editingPartner?.photo_url || ""}
+                  onUploaded={(newUrl) => {
+                   if (!newUrl) return;
+
+  // 1) обновляем состояние текущего партнера (в модалке)
+  setEditingPartner((prev) => ({ ...(prev || {}), photo_url: newUrl }));
+
+  // 2) сразу обновляем строку в таблице, чтобы img начал грузить НОВЫЙ файл
+  setPartners((prev) =>
+    prev.map((p) => (String(p.id) === String(editingId) ? { ...p, photo_url: newUrl } : p))
+  );
+
+  // 3) и затем подтягиваем с сервера (но UI уже правильный)
+  loadPartners();
+}}
+                />
+              </div>
+            )}
+
+            {!editingId && (
+              <p style={{ margin: "0 0 12px 0", color: "#6b7280", fontWeight: 700, fontSize: 13 }}>
+                You can upload a photo after creating the partner.
+              </p>
+            )}
 
             <form onSubmit={handleSubmit}>
               {/* Basic Info */}
@@ -243,13 +337,7 @@ export default function Clients() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Type *</label>
-                    <select
-                      name="type"
-                      value={formData.type}
-                      onChange={handleInputChange}
-                      required
-                      disabled={loading}
-                    >
+                    <select name="type" value={formData.type} onChange={handleInputChange} required disabled={loading}>
                       <option value="customer">Customer</option>
                       <option value="vendor">Vendor</option>
                     </select>
@@ -257,25 +345,13 @@ export default function Clients() {
 
                   <div className="form-group">
                     <label>Phone</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      disabled={loading}
-                    />
+                    <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} disabled={loading} />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label>Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    disabled={loading}
-                  />
+                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} disabled={loading} />
                 </div>
               </fieldset>
 
@@ -314,13 +390,7 @@ export default function Clients() {
 
                 <div className="form-group">
                   <label>Bank Name</label>
-                  <input
-                    type="text"
-                    name="bank_name"
-                    value={formData.bank_name}
-                    onChange={handleInputChange}
-                    disabled={loading}
-                  />
+                  <input type="text" name="bank_name" value={formData.bank_name} onChange={handleInputChange} disabled={loading} />
                 </div>
 
                 <div className="form-row">
@@ -337,28 +407,17 @@ export default function Clients() {
 
                   <div className="form-group">
                     <label>Bank Code (SWIFT/BIC)</label>
-                    <input
-                      type="text"
-                      name="bank_code"
-                      value={formData.bank_code}
-                      onChange={handleInputChange}
-                      disabled={loading}
-                    />
+                    <input type="text" name="bank_code" value={formData.bank_code} onChange={handleInputChange} disabled={loading} />
                   </div>
                 </div>
               </fieldset>
 
               <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={handleCloseModal}
-                  disabled={loading}
-                >
+                <button type="button" className="btn-secondary" onClick={handleCloseModal} disabled={loading}>
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? "Saving..." : "Save Partner"}
+                  {loading ? "Saving..." : editingId ? "Save Partner" : "Create Partner"}
                 </button>
               </div>
             </form>
@@ -390,6 +449,7 @@ export default function Clients() {
           <table className="partners-table">
             <thead>
               <tr>
+                <th style={{ width: 80 }}></th>
                 <th>Name</th>
                 <th>Type</th>
                 <th>Phone</th>
@@ -399,14 +459,17 @@ export default function Clients() {
                 <th>Actions</th>
               </tr>
             </thead>
+
             <tbody>
               {partners.map((partner) => (
                 <tr key={partner.id}>
+                  <td>
+                    <AvatarCell url={partner.photo_url} alt={`${partner.name} photo`} />
+                  </td>
+
                   <td className="cell-name">{partner.name}</td>
                   <td className="cell-type">
-                    <span
-                      className={`badge badge-${partner.type === "customer" ? "blue" : "green"}`}
-                    >
+                    <span className={`badge badge-${partner.type === "customer" ? "blue" : "green"}`}>
                       {partner.type === "customer" ? "👥 Customer" : "🏭 Vendor"}
                     </span>
                   </td>
@@ -415,12 +478,7 @@ export default function Clients() {
                   <td>{partner.vat_number || "-"}</td>
                   <td className="cell-date">{formatDate(partner.created_at)}</td>
                   <td className="cell-actions">
-                    <button
-                      className="btn-icon"
-                      title="Edit"
-                      onClick={() => handleEditClick(partner)}
-                      disabled={loading}
-                    >
+                    <button className="btn-icon" title="Edit" onClick={() => handleEditClick(partner)} disabled={loading}>
                       ✏️
                     </button>
                     <button
@@ -439,7 +497,15 @@ export default function Clients() {
         ) : (
           <div className="empty-state">
             <p>No {activeTab === "all" ? "partners" : `${activeTab}s`} yet</p>
-            <button className="btn-primary" onClick={() => setShowModal(true)}>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setEditingId(null);
+                setEditingPartner(null);
+                resetForm();
+                setShowModal(true);
+              }}
+            >
               Create First Partner
             </button>
           </div>

@@ -6,7 +6,6 @@ import {
   fetchClients,
   fetchServices,
   getAppointmentsByDateRange,
-  createAppointment,
   updateAppointment,
   deleteAppointment,
 } from "../api/api";
@@ -35,11 +34,9 @@ export default function Appointments() {
 
   const [myMasterId, setMyMasterId] = useState("");
 
-  // ======= Верхняя панель: период/дата =======
   const [period, setPeriod] = useState("week");
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // ======= Фильтры =======
   const [masters, setMasters] = useState([]);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
@@ -52,16 +49,13 @@ export default function Appointments() {
   const [showClientFilter, setShowClientFilter] = useState(false);
   const [showServiceFilter, setShowServiceFilter] = useState(false);
 
-  // ======= Данные =======
   const [appointments, setAppointments] = useState([]);
 
-  // ======= Модалка создания =======
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Состояние для редактирования
   const [editingId, setEditingId] = useState(null);
   const [editMasterId, setEditMasterId] = useState("");
   const [editClientId, setEditClientId] = useState("");
@@ -69,10 +63,8 @@ export default function Appointments() {
   const [editStartTime, setEditStartTime] = useState("");
   const [editStatus, setEditStatus] = useState("planned");
 
-  // Состояние для подтверждения удаления
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-  // Чтобы не закрывать фильтры кликом внутри области фильтров
   const filtersWrapperRef = useRef(null);
 
   const canEditAppointment = (appointment) => {
@@ -81,7 +73,6 @@ export default function Appointments() {
     return false;
   };
 
-  // ======= Даты: диапазон для API (как в Dashboard) =======
   const getDateRangeForAPI = () => {
     const date = new Date(currentDate);
 
@@ -109,7 +100,6 @@ export default function Appointments() {
       };
     }
 
-    // fallback
     const start = date.toISOString().split("T")[0];
     return { start, end: start };
   };
@@ -172,23 +162,16 @@ export default function Appointments() {
     setCurrentDate(new Date());
   };
 
-  // ======= Фильтры =======
   const toggleMaster = (masterId) => {
-    setSelectedMasters((prev) =>
-      prev.includes(masterId) ? prev.filter((id) => id !== masterId) : [...prev, masterId]
-    );
+    setSelectedMasters((prev) => (prev.includes(masterId) ? prev.filter((id) => id !== masterId) : [...prev, masterId]));
   };
 
   const toggleClient = (clientId) => {
-    setSelectedClients((prev) =>
-      prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]
-    );
+    setSelectedClients((prev) => (prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]));
   };
 
   const toggleService = (serviceId) => {
-    setSelectedServices((prev) =>
-      prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]
-    );
+    setSelectedServices((prev) => (prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]));
   };
 
   const toggleAllMasters = () => {
@@ -206,7 +189,6 @@ export default function Appointments() {
     else setSelectedServices(services.map((s) => s.id));
   };
 
-  // Закрытие фильтров при клике вне
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (filtersWrapperRef.current && filtersWrapperRef.current.contains(e.target)) return;
@@ -219,7 +201,6 @@ export default function Appointments() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // ======= Загрузка справочников =======
   const loadFilters = async () => {
     try {
       setError("");
@@ -227,7 +208,7 @@ export default function Appointments() {
       const [clientsData, servicesData, mastersData, me] = await Promise.all([
         fetchClients(token),
         fetchServices(token),
-        fetchMasters(token), // (после правки backend/masters.js мастер сможет это вызвать)
+        fetchMasters(token),
         isMaster ? fetchMyMaster(token) : Promise.resolve(null),
       ]);
 
@@ -246,7 +227,6 @@ export default function Appointments() {
     }
   };
 
-  // ======= Загрузка appointments за период =======
   const loadAppointmentsByRange = async () => {
     if (!token) return;
     setLoading(true);
@@ -264,30 +244,18 @@ export default function Appointments() {
     }
   };
 
-  // Инициализация
   useEffect(() => {
     if (token) loadFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, isAdmin, isMaster]);
 
-  // Перезагрузка при смене периода/даты
   useEffect(() => {
     if (!token) return;
     loadAppointmentsByRange();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, period, currentDate]);
 
-  // ======= Данные для таблицы с применением фильтров =======
-  const filteredAppointments = useMemo(() => {
-    return appointments.filter((apt) => {
-      const masterMatch = selectedMasters.length === 0 || selectedMasters.includes(apt.master_id);
-      const clientMatch = selectedClients.length === 0 || selectedClients.includes(apt.client_id);
-      const serviceMatch = selectedServices.length === 0 || selectedServices.includes(apt.service_id);
-      return masterMatch && clientMatch && serviceMatch;
-    });
-  }, [appointments, selectedMasters, selectedClients, selectedServices]);
-
-  // ======= Хелперы отображения =======
+  // ======= Helpers =======
   const formatDateTime = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleString("en-US", {
@@ -299,9 +267,19 @@ export default function Appointments() {
   };
 
   const getMasterName = (id) => masters.find((m) => m.id === id)?.name || "Unknown";
-  const getClientName = (id) => clients.find((c) => c.id === id)?.name || "Unknown";
+  const getClientName = (id) => {
+    if (!id) return "—"; // ✅ show dash for Day Off
+    return clients.find((c) => c.id === id)?.name || "Unknown";
+  };
   const getServiceName = (id) => services.find((s) => s.id === id)?.name || "Unknown";
   const getServiceDuration = (id) => services.find((s) => s.id === id)?.duration || 0;
+
+  const getServicePrice = (id) => services.find((s) => s.id === id)?.price ?? 0;
+  const formatMoney = (value) => {
+    const n = Number(value);
+    if (Number.isNaN(n)) return "-";
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR" }).format(n);
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -316,13 +294,27 @@ export default function Appointments() {
     }
   };
 
+  // ✅ NEW: allow appointments with client_id null to pass client filter (Day Off)
+  const filteredAppointments = useMemo(() => {
+    return appointments.filter((apt) => {
+      const masterMatch = selectedMasters.length === 0 || selectedMasters.includes(apt.master_id);
+
+      const clientMatch =
+        !apt.client_id || selectedClients.length === 0 || selectedClients.includes(apt.client_id);
+
+      const serviceMatch = selectedServices.length === 0 || selectedServices.includes(apt.service_id);
+
+      return masterMatch && clientMatch && serviceMatch;
+    });
+  }, [appointments, selectedMasters, selectedClients, selectedServices]);
+
   // ======= Edit/Delete =======
   const handleEditClick = (appointment) => {
     if (!canEditAppointment(appointment)) return;
 
     setEditingId(appointment.id);
     setEditMasterId(appointment.master_id);
-    setEditClientId(appointment.client_id);
+    setEditClientId(appointment.client_id || ""); // ✅ handle null
     setEditServiceId(appointment.service_id);
     setEditStartTime(appointment.start_time.slice(0, 16));
     setEditStatus(appointment.status);
@@ -332,7 +324,6 @@ export default function Appointments() {
     e.preventDefault();
     if (!editingId) return;
 
-    // master может сохранять только свои
     const apt = appointments.find((a) => a.id === editingId);
     if (!canEditAppointment(apt)) return;
 
@@ -342,7 +333,7 @@ export default function Appointments() {
     try {
       await updateAppointment(token, editingId, {
         master_id: editMasterId,
-        client_id: editClientId,
+        client_id: editClientId || null, // ✅ allow null (backend will enforce Day Off rules)
         service_id: editServiceId,
         start_time: editStartTime,
         status: editStatus,
@@ -399,13 +390,13 @@ export default function Appointments() {
 
   const handleCancelDelete = () => setDeleteConfirmId(null);
 
-  // ======= Excel export (только текущие отфильтрованные) =======
   const handleExportExcel = () => {
     const rows = filteredAppointments.map((a) => ({
       ID: a.id,
       Master: getMasterName(a.master_id),
       Client: getClientName(a.client_id),
       Service: getServiceName(a.service_id),
+      "Service Price": getServicePrice(a.service_id),
       "Start Time": formatDateTime(a.start_time),
       Duration: `${getServiceDuration(a.service_id)} min`,
       Status: a.status,
@@ -424,7 +415,6 @@ export default function Appointments() {
 
   return (
     <div className="dashboard-container">
-      {/* Верхняя панель */}
       <div className="dashboard-topbar">
         <div className="topbar-left">
           <div className="calendar-nav">
@@ -487,7 +477,6 @@ export default function Appointments() {
               )}
             </div>
 
-            {/* Clients filter */}
             <div className="filter-item">
               <button
                 className="filter-toggle"
@@ -518,7 +507,6 @@ export default function Appointments() {
               )}
             </div>
 
-            {/* Services filter */}
             <div className="filter-item">
               <button
                 className="filter-toggle"
@@ -552,10 +540,8 @@ export default function Appointments() {
         </div>
       </div>
 
-      {/* Ошибка верхняя */}
       {error && <p className="appointments-error-message">{error}</p>}
 
-      {/* Календарь */}
       <div className="calendar-main-section">
         <Calendar
           onRefresh={loadAppointmentsByRange}
@@ -571,23 +557,15 @@ export default function Appointments() {
 
       {error && <div className="error-message">{error}</div>}
 
-      {/* Таблица + экспорт */}
       <div className="container">
         <div className="appointments-header-row">
           <h2>Appointments</h2>
 
-          {/* Создание: admin всегда, master только для себя (разрешено backend) */}
           <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
             + New Appointment
           </button>
 
-          <button
-            className="export-btn"
-            type="button"
-            onClick={handleExportExcel}
-            disabled={loading}
-            title="Exports only currently filtered appointments"
-          >
+          <button className="export-btn" type="button" onClick={handleExportExcel} disabled={loading}>
             Export to Excel
           </button>
         </div>
@@ -599,6 +577,7 @@ export default function Appointments() {
                 <th>Master</th>
                 <th>Client</th>
                 <th>Service</th>
+                <th>Price</th>
                 <th>Start Time</th>
                 <th>Duration</th>
                 <th>Status</th>
@@ -616,6 +595,7 @@ export default function Appointments() {
                       <td>{getMasterName(a.master_id)}</td>
                       <td>{getClientName(a.client_id)}</td>
                       <td>{getServiceName(a.service_id)}</td>
+                      <td>{formatMoney(getServicePrice(a.service_id))}</td>
                       <td>{formatDateTime(a.start_time)}</td>
                       <td>{getServiceDuration(a.service_id)} min</td>
                       <td>
@@ -651,7 +631,7 @@ export default function Appointments() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan="8" style={{ textAlign: "center", color: "#9ca3af" }}>
                     No appointments yet
                   </td>
                 </tr>
@@ -660,13 +640,17 @@ export default function Appointments() {
           </table>
         </div>
 
-        {/* Модальное окно редактирования */}
         {editingId && (
           <div className="modal-overlay" onClick={handleCancelEdit}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h3>Edit Appointment</h3>
               <form onSubmit={handleSaveEdit}>
-                <select value={editMasterId} onChange={(e) => setEditMasterId(e.target.value)} required disabled={loading || (isMaster && editMasterId !== myMasterId)}>
+                <select
+                  value={editMasterId}
+                  onChange={(e) => setEditMasterId(e.target.value)}
+                  required
+                  disabled={loading || (isMaster && editMasterId !== myMasterId)}
+                >
                   <option value="">Select Master</option>
                   {masters.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -675,8 +659,13 @@ export default function Appointments() {
                   ))}
                 </select>
 
-                <select value={editClientId} onChange={(e) => setEditClientId(e.target.value)} required disabled={loading}>
-                  <option value="">Select Client</option>
+                <select
+                  value={editClientId}
+                  onChange={(e) => setEditClientId(e.target.value)}
+                  required={false}
+                  disabled={loading}
+                >
+                  <option value="">No client</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -720,7 +709,6 @@ export default function Appointments() {
           </div>
         )}
 
-        {/* Модальное окно подтверждения удаления */}
         {deleteConfirmId && (
           <div className="modal-overlay" onClick={handleCancelDelete}>
             <div className="modal-content modal-confirm" onClick={(e) => e.stopPropagation()}>
@@ -739,7 +727,6 @@ export default function Appointments() {
         )}
       </div>
 
-      {/* Create Appointment Modal */}
       {showCreateModal && (
         <CreateAppointmentModal
           onClose={() => setShowCreateModal(false)}

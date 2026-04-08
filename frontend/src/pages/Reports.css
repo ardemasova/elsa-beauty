@@ -9,6 +9,33 @@
   --page-bg: #fafafa;
 }
 
+.reports-chart-bg {
+  background: url("/background.png") center / cover no-repeat !important;
+  border-radius: 12px;
+  padding: 24px 0 12px 0;
+  margin-bottom: 16px;
+}
+
+.reports-chart-labels {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  min-height: 30px;
+}
+
+.reports-chart-labels span {
+  min-width: 60px;
+  max-width: 100px;
+  padding: 0 3px;
+  text-align: center;
+  word-break: break-all;
+  white-space: normal;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nav-bg);
+}
+
 .reports-container {
   padding: 40px;
   max-width: 1400px;
@@ -830,4 +857,60 @@
     min-width: 0;
     flex: 1 1 220px;
   }
+}
+
+.master-photo-img {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(0, 80, 103, 0.20);
+  display: block;
+  margin: 0 auto;
+}
+.master-photo-placeholder {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  border: 2px dashed rgba(0, 80, 103, 0.20);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  color: #9ca3af;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.filter-block {
+  position: relative;
+  display: inline-block;
+}
+.filter-toggle {
+  font-weight: 800;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.filter-dropdown {
+  position: absolute;
+  left: 0;
+  top: 36px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  z-index: 2;
+  padding: 12px;
+  min-width: 180px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+}
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 6px 0;
 }

@@ -1,7 +1,50 @@
 import { useState, useEffect } from "react";
 import { fetchMasters, fetchUsers, createMaster, updateMaster, deleteMaster } from "../api/api";
+import PhotoUpload from "../components/PhotoUpload";
+import { toAbsoluteUploadUrl } from "../api/uploadApi";
 import * as XLSX from "xlsx";
 import "./Appointments.css";
+
+const AVATAR_SIZE = 54;
+
+function AvatarCell({ url, alt }) {
+  return url ? (
+    <img
+      src={toAbsoluteUploadUrl(url)}
+      alt={alt}
+      style={{
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
+        borderRadius: "50%",
+        objectFit: "cover",
+        border: "2px solid rgba(0, 80, 103, 0.20)",
+        display: "block",
+        margin: "0 auto",
+      }}
+      loading="lazy"
+    />
+  ) : (
+    <div
+      style={{
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
+        borderRadius: "50%",
+        background: "#f3f4f6",
+        border: "2px dashed rgba(0, 80, 103, 0.20)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        margin: "0 auto",
+        color: "#9ca3af",
+        fontWeight: 700,
+        fontSize: 12,
+      }}
+      title="No photo"
+    >
+      —
+    </div>
+  );
+}
 
 export default function Masters() {
   const token = localStorage.getItem("token");
@@ -49,11 +92,13 @@ export default function Masters() {
     setError("");
     setLoading(true);
     try {
-      await createMaster(token, payload);
+      const created = await createMaster(token, payload);
       setShowCreateModal(false);
       await loadMasters();
+      return created;
     } catch (err) {
       setError(err.message || "Failed to create master");
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -93,6 +138,7 @@ export default function Masters() {
       Name: m.name,
       Commission: `${m.commission}%`,
       Email: getUserEmail(m.user_id),
+      Photo: m.photo_url || "",
     }));
 
     const fileName = `masters_${new Date().toISOString().slice(0, 10)}.xlsx`;
@@ -123,6 +169,7 @@ export default function Masters() {
         <table>
           <thead>
             <tr>
+              <th style={{ width: 80 }}></th>
               <th>Name</th>
               <th>Commission</th>
               <th>Email</th>
@@ -134,9 +181,14 @@ export default function Masters() {
             {masters.length > 0 ? (
               masters.map((m) => (
                 <tr key={m.id}>
+                  <td>
+                    <AvatarCell url={m.photo_url} alt={`${m.name} photo`} />
+                  </td>
+
                   <td>{m.name}</td>
                   <td>{m.commission}%</td>
                   <td>{getUserEmail(m.user_id)}</td>
+
                   <td className="actions">
                     <button type="button" className="secondary" onClick={() => setEditingMaster(m)} disabled={loading}>
                       Edit
@@ -149,7 +201,7 @@ export default function Masters() {
               ))
             ) : (
               <tr>
-                <td colSpan="4" style={{ textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan="5" style={{ textAlign: "center", color: "#9ca3af" }}>
                   No masters yet
                 </td>
               </tr>
@@ -168,17 +220,21 @@ export default function Masters() {
             commission: 40,
             userId: "",
             email: "",
+            photo_url: "",
           }}
           onClose={() => setShowCreateModal(false)}
-          onSubmit={(values) =>
-            handleCreate({
+          onSubmit={async (values) => {
+            const created = await handleCreate({
               name: values.name,
               commission: values.commission,
               userId: values.userId,
               email: values.email,
-            })
-          }
+            });
+            setEditingMaster(created);
+          }}
           submitLabel="Create"
+          token={token}
+          onPhotoUploaded={() => {}}
         />
       )}
 
@@ -188,6 +244,8 @@ export default function Masters() {
           loading={loading}
           users={users}
           initialValues={{
+            id: editingMaster.id,
+            photo_url: editingMaster.photo_url || "",
             name: editingMaster.name || "",
             commission: editingMaster.commission ?? 40,
             userId: editingMaster.user_id ? String(editingMaster.user_id) : "",
@@ -203,6 +261,11 @@ export default function Masters() {
             })
           }
           submitLabel="Save"
+          token={token}
+          onPhotoUploaded={(newUrl) => {
+            setEditingMaster((prev) => ({ ...prev, photo_url: newUrl }));
+            loadMasters();
+          }}
         />
       )}
 
@@ -226,11 +289,27 @@ export default function Masters() {
   );
 }
 
-function MasterModal({ title, initialValues, users, loading, onClose, onSubmit, submitLabel }) {
+// MasterModal без изменений (оставьте как у вас)
+
+function MasterModal({
+  title,
+  initialValues,
+  users,
+  loading,
+  onClose,
+  onSubmit,
+  submitLabel,
+  token,
+  onPhotoUploaded,
+}) {
   const [name, setName] = useState(initialValues.name);
   const [email, setEmail] = useState(initialValues.email || "");
   const [commission, setCommission] = useState(initialValues.commission);
   const [userId, setUserId] = useState(initialValues.userId);
+
+  // photo can be edited only when we have master id (edit modal)
+  const masterId = initialValues.id;
+  const photoUrl = initialValues.photo_url || "";
 
   useEffect(() => {
     setName(initialValues.name);
@@ -244,7 +323,6 @@ function MasterModal({ title, initialValues, users, loading, onClose, onSubmit, 
     const selected = users.find((u) => String(u.id) === String(userId));
     if (!selected) return;
 
-    // only auto-fill if user hasn't typed anything
     setEmail((prev) => (prev ? prev : selected.email || ""));
   }, [userId, users]);
 
@@ -262,6 +340,30 @@ function MasterModal({ title, initialValues, users, loading, onClose, onSubmit, 
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
+
+        {/* Photo upload
+            - In "New Master": initially masterId is undefined -> uploader hidden
+            - After create: we auto-open Edit modal, uploader becomes available
+        */}
+        {masterId && (
+          <div className="form-group">
+            <label>Photo</label>
+            <PhotoUpload
+              entity="masters"
+              id={masterId}
+              token={token}
+              currentUrl={photoUrl}
+              onUploaded={(newUrl) => onPhotoUploaded?.(newUrl)}
+            />
+          </div>
+        )}
+
+        {/* Optional UX hint for create modal */}
+        {!masterId && submitLabel === "Create" && (
+          <p style={{ margin: "0 0 12px 0", color: "#6b7280", fontWeight: 700, fontSize: 13 }}>
+            You can upload a photo after creating the master.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

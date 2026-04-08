@@ -15,14 +15,12 @@ export default function Invoice() {
 
   useEffect(() => {
     loadInvoiceData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentId, token]);
 
   const loadInvoiceData = async () => {
     try {
-      const [invoiceData, companyData] = await Promise.all([
-        getInvoiceData(paymentId, token),
-        getCompanySettings(token),
-      ]);
+      const [invoiceData, companyData] = await Promise.all([getInvoiceData(paymentId, token), getCompanySettings(token)]);
       setInvoice(invoiceData);
       setCompany(companyData);
       setError("");
@@ -34,17 +32,10 @@ export default function Invoice() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
+  const handleBack = () => navigate("/payments");
 
-  const handleBack = () => {
-    navigate("/payments");
-  };
-
-  if (loading) {
-    return <div className="invoice-loading">Loading invoice...</div>;
-  }
+  if (loading) return <div className="invoice-loading">Loading invoice...</div>;
 
   if (error) {
     return (
@@ -64,11 +55,32 @@ export default function Invoice() {
     );
   }
 
-  const {
-    payment,
-    partner,
-    appointment,
-  } = invoice;
+  // === UPDATED: get expense from invoice ===
+  const { payment, partner, appointment, item, expense } = invoice;
+  const qty = Number(payment?.qty || 1);
+
+  // payment.amount is TOTAL incl VAT (per your Payments form label)
+  const totalInclVat = Number(payment?.amount || 0);
+
+  const vatPercent = payment?.vat_percent != null ? Number(payment.vat_percent) : 0;
+  // VAT amount derived from total
+  const vatAmount = totalInclVat * (vatPercent / 100);
+
+  // Unit price ex VAT, for expenses just the total
+  const unitPriceExVat = qty > 0 ? (totalInclVat - vatAmount) / qty : totalInclVat - vatAmount;
+  const subtotalExVat = qty * unitPriceExVat;
+
+  // description resolved from appointment/item/expense
+  let description = "Payment";
+  if (appointment) {
+    description = appointment.service_name || "Service";
+  } else if (item) {
+    description = item.name || "Item";
+  } else if (expense) {
+    description = expense.name || "Expense";
+  }
+
+  const formatMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
 
   return (
     <div className="invoice-container">
@@ -95,8 +107,12 @@ export default function Invoice() {
 
             <div className="invoice-meta">
               <h2>INVOICE</h2>
-              <p><strong>Invoice #:</strong> {payment.id.substring(0, 8).toUpperCase()}</p>
-              <p><strong>Date:</strong> {new Date(payment.paid_at).toLocaleDateString()}</p>
+              <p>
+                <strong>Invoice #:</strong> {String(payment.id).substring(0, 8).toUpperCase()}
+              </p>
+              <p>
+                <strong>Date:</strong> {new Date(payment.paid_at).toLocaleDateString()}
+              </p>
             </div>
           </div>
 
@@ -115,6 +131,8 @@ export default function Invoice() {
                 <span>Invoice Date:</span>
                 <strong>{new Date(payment.paid_at).toLocaleDateString()}</strong>
               </div>
+
+              {/* Appointment block */}
               {appointment && (
                 <>
                   <div className="detail-item">
@@ -127,9 +145,15 @@ export default function Invoice() {
                   </div>
                 </>
               )}
+
               <div className="detail-item">
                 <span>Payment Method:</span>
                 <strong className="capitalize">{payment.method}</strong>
+              </div>
+
+              <div className="detail-item">
+                <span>VAT %:</span>
+                <strong>{Number.isFinite(vatPercent) ? `${vatPercent}%` : "0%"}</strong>
               </div>
             </div>
           </div>
@@ -142,25 +166,22 @@ export default function Invoice() {
                   <th>Description</th>
                   <th>Qty</th>
                   <th>Unit Price</th>
+                  <th>VAT</th>
                   <th>Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {appointment ? (
-                  <tr>
-                    <td>{appointment.service_name || 'Service'}</td>
-                    <td className="text-center">1</td>
-                    <td className="text-right">${payment.amount.toFixed(2)}</td>
-                    <td className="text-right"><strong>${payment.amount.toFixed(2)}</strong></td>
-                  </tr>
-                ) : (
-                  <tr>
-                    <td>Payment</td>
-                    <td className="text-center">1</td>
-                    <td className="text-right">${payment.amount.toFixed(2)}</td>
-                    <td className="text-right"><strong>${payment.amount.toFixed(2)}</strong></td>
-                  </tr>
-                )}
+                <tr>
+                  <td>{description}</td>
+                  <td className="text-center">{qty}</td>
+                  <td className="text-right">{formatMoney(unitPriceExVat)}</td>
+                  <td className="text-right">
+                    {vatPercent ? `${vatPercent}% (${formatMoney(vatAmount)})` : formatMoney(0)}
+                  </td>
+                  <td className="text-right">
+                    <strong>{formatMoney(totalInclVat)}</strong>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -169,16 +190,18 @@ export default function Invoice() {
           <div className="invoice-section">
             <div className="invoice-totals">
               <div className="total-row">
-                <span>Subtotal:</span>
-                <strong>${payment.amount.toFixed(2)}</strong>
+                <span>Subtotal (ex VAT):</span>
+                <strong>{formatMoney(subtotalExVat)}</strong>
               </div>
+
               <div className="total-row">
-                <span>Tax (0%):</span>
-                <strong>$0.00</strong>
+                <span>VAT ({Number.isFinite(vatPercent) ? `${vatPercent}%` : "0%"}):</span>
+                <strong>{formatMoney(vatAmount)}</strong>
               </div>
+
               <div className="total-row total">
-                <span>Total Due:</span>
-                <strong>${payment.amount.toFixed(2)}</strong>
+                <span>Total Due (incl VAT):</span>
+                <strong>{formatMoney(totalInclVat)}</strong>
               </div>
             </div>
           </div>
@@ -186,9 +209,7 @@ export default function Invoice() {
           {/* Footer */}
           <div className="invoice-footer">
             <p>Thank you for your business!</p>
-            <p className="footer-note">
-              Payment was received on {new Date(payment.paid_at).toLocaleDateString()}
-            </p>
+            <p className="footer-note">Payment was received on {new Date(payment.paid_at).toLocaleDateString()}</p>
           </div>
         </div>
       </div>

@@ -8,18 +8,17 @@
 
 .payments-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
+  margin-bottom: 10px;
+  flex-wrap: wrap; /* чтобы на маленьком экране переносилось аккуратно */
 }
 
 .payments-header h1 {
+  margin: 0;
   font-size: 32px;
   font-weight: 800;
   color: var(--nav-bg);
-  margin: 0;
 }
 
 /* Button */
@@ -383,11 +382,15 @@
 
 /* header actions (New + Export) */
 .payments-header-actions {
+  margin-left: auto;
   display: flex;
-  align-items: center;
   gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
 }
- .payments-header-actions {
-    width: 100%;
-  }
+
+
+  .payments-header-actions .btn-primary,
+.payments-header-actions .btn-secondary {
+  white-space: nowrap;
+}

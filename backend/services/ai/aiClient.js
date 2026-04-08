@@ -1,10 +1,16 @@
 const OpenAI = require("openai").default;
 
 console.log("========== INITIALIZING OPENAI ==========");
-console.log("API Key exists:", !!process.env.OPENAI_API_KEY);
+console.log("API Key exists:", !!process.env.OPENROUTER_API_KEY);
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+
+   defaultHeaders: {
+    "HTTP-Referer": "http://localhost:5173",
+    "X-Title": "ELSA Beauty",
+  },
 });
 
 console.log("OpenAI instance created:", !!openai);

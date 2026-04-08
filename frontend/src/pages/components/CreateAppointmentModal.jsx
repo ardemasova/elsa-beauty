@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  fetchMasters,
-  fetchMyMaster,
-  fetchClients,
-  fetchServices,
-  createAppointment,
-} from "../../api/api";
+import { fetchMasters, fetchMyMaster, fetchClients, fetchServices, createAppointment } from "../../api/api";
 import "./CreateAppointmentModal.css";
 
 function decodeToken(token) {
@@ -32,6 +26,17 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
   const token = localStorage.getItem("token");
   const tokenPayload = useMemo(() => decodeToken(token), [token]);
   const isAdmin = tokenPayload?.role === "admin";
+
+  // ===== Day Off logic =====
+  const selectedService = useMemo(
+    () => services.find((s) => String(s.id) === String(serviceId)) || null,
+    [services, serviceId]
+  );
+
+  const isDayOff = useMemo(() => {
+    const name = String(selectedService?.name || "").trim().toLowerCase();
+    return name === "day off";
+  }, [selectedService]);
 
   useEffect(() => {
     if (!token) return;
@@ -68,6 +73,13 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
     }
   };
 
+  // ✅ If Day Off selected => client must be empty (and not required)
+  useEffect(() => {
+    if (isDayOff && clientId) {
+      setClientId("");
+    }
+  }, [isDayOff, clientId]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -76,7 +88,8 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
     try {
       await createAppointment(token, {
         master_id: masterId,
-        client_id: clientId,
+        // ✅ allow null client only for Day Off
+        client_id: isDayOff ? null : clientId,
         service_id: serviceId,
         start_time: startTime,
       });
@@ -102,15 +115,16 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
 
         {error && <p className="error-message">{error}</p>}
 
+        {isDayOff && (
+          <p className="info-message" style={{ marginTop: 8 }}>
+            Day Off selected — Client is not required and will be empty.
+          </p>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Master</label>
-            <select
-              value={masterId}
-              onChange={(e) => setMasterId(e.target.value)}
-              required
-              disabled={masterSelectDisabled}
-            >
+            <select value={masterId} onChange={(e) => setMasterId(e.target.value)} required disabled={masterSelectDisabled}>
               <option value="">{isAdmin ? "Select Master" : "Loading..."}</option>
               {masters.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -121,14 +135,16 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
           </div>
 
           <div className="form-group">
-            <label>Client</label>
+            <label>
+              Client {isDayOff ? "(not required for Day Off)" : ""}
+            </label>
             <select
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
-              required
-              disabled={loading}
+              required={!isDayOff}
+              disabled={loading || isDayOff}
             >
-              <option value="">Select Client</option>
+              <option value="">{isDayOff ? "No client" : "Select Client"}</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -139,12 +155,7 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
 
           <div className="form-group">
             <label>Service</label>
-            <select
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-              required
-              disabled={loading}
-            >
+            <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} required disabled={loading}>
               <option value="">Select Service</option>
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -166,7 +177,17 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
           </div>
 
           <div className="form-actions">
-            <button type="submit" disabled={loading} className="btn-submit">
+            <button
+              type="submit"
+              disabled={
+                loading ||
+                !masterId ||
+                !serviceId ||
+                !startTime ||
+                (!isDayOff && !clientId) // ✅ client required except Day Off
+              }
+              className="btn-submit"
+            >
               {loading ? "Creating..." : "Create Appointment"}
             </button>
             <button type="button" onClick={onClose} disabled={loading} className="btn-cancel">

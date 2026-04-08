@@ -8,6 +8,10 @@ import {
   createItem,
   updateItem,
   deleteItem,
+  fetchExpenses,
+  createExpense,
+  updateExpense,
+  deleteExpense,
 } from "../api/api";
 import * as XLSX from "xlsx";
 import "./Appointments.css";
@@ -15,8 +19,8 @@ import "./Appointments.css";
 export default function Services() {
   const token = localStorage.getItem("token");
 
-  // Tabs (Payments-like)
-  const [activeTab, setActiveTab] = useState("services"); // services | stock
+  // Tabs
+  const [activeTab, setActiveTab] = useState("services"); // services | stock | expenses
 
   // Services
   const [services, setServices] = useState([]);
@@ -30,10 +34,17 @@ export default function Services() {
   const [editingItem, setEditingItem] = useState(null);
   const [deleteItemConfirmId, setDeleteItemConfirmId] = useState(null);
 
+  // Expenses
+  const [expenses, setExpenses] = useState([]);
+  const [showCreateExpenseModal, setShowCreateExpenseModal] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [deleteExpenseConfirmId, setDeleteExpenseConfirmId] = useState(null);
+
   // Common
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ===== LOADERS =====
   const loadServices = async () => {
     try {
       const data = await fetchServices(token);
@@ -52,15 +63,25 @@ export default function Services() {
     }
   };
 
+  const loadExpenses = async () => {
+    try {
+      const data = await fetchExpenses(token);
+      setExpenses(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || "Failed to load expenses");
+    }
+  };
+
   useEffect(() => {
     loadServices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, []);
 
   // Load items when switching to stock
   useEffect(() => {
     if (activeTab === "stock") loadItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (activeTab === "expenses") loadExpenses();
+    // eslint-disable-next-line
   }, [activeTab]);
 
   const calculateProfit = (price, cost) => {
@@ -69,7 +90,7 @@ export default function Services() {
     return (p - c).toFixed(2);
   };
 
-  // ===== Services CRUD =====
+  // ===== SERVICES CRUD =====
   const handleCreate = async (payload) => {
     setError("");
     setLoading(true);
@@ -136,7 +157,7 @@ export default function Services() {
     XLSX.writeFile(wb, fileName);
   };
 
-  // ===== Items CRUD =====
+  // ===== ITEMS CRUD =====
   const handleCreateItem = async (payload) => {
     setError("");
     setLoading(true);
@@ -205,7 +226,62 @@ export default function Services() {
     XLSX.writeFile(wb, fileName);
   };
 
-  // Header actions depend on tab; title stays constant "Items"
+  // ===== EXPENSES CRUD =====
+  const handleCreateExpense = async (payload) => {
+    setError("");
+    setLoading(true);
+    try {
+      await createExpense(token, payload);
+      setShowCreateExpenseModal(false);
+      await loadExpenses();
+    } catch (err) {
+      setError(err.message || "Failed to create expense");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateExpense = async (id, payload) => {
+    setError("");
+    setLoading(true);
+    try {
+      await updateExpense(token, id, payload);
+      setEditingExpense(null);
+      await loadExpenses();
+    } catch (err) {
+      setError(err.message || "Failed to update expense");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDeleteExpense = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await deleteExpense(token, deleteExpenseConfirmId);
+      setDeleteExpenseConfirmId(null);
+      await loadExpenses();
+    } catch (err) {
+      setError(err.message || "Failed to delete expense");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportExcelExpenses = () => {
+    const rows = expenses.map((e) => ({
+      ID: e.id,
+      Name: e.name,
+    }));
+    const fileName = `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+    XLSX.writeFile(wb, fileName);
+  };
+
+  // Header actions switch
   const headerActions = useMemo(() => {
     if (activeTab === "services") {
       return (
@@ -213,36 +289,52 @@ export default function Services() {
           <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)} disabled={loading}>
             + New Service
           </button>
-
           <button className="export-btn" type="button" onClick={handleExportExcelServices} disabled={loading}>
             Export to Excel
           </button>
         </>
       );
     }
-
-    return (
-      <>
-        <button className="add-appointment-btn" onClick={() => setShowCreateItemModal(true)} disabled={loading}>
-          + New Item
-        </button>
-
-        <button className="export-btn" type="button" onClick={handleExportExcelItems} disabled={loading}>
-          Export to Excel
-        </button>
-      </>
-    );
-  }, [activeTab, loading, services, items]);
+    if (activeTab === "stock") {
+      return (
+        <>
+          <button className="add-appointment-btn" onClick={() => setShowCreateItemModal(true)} disabled={loading}>
+            + New Item
+          </button>
+          <button className="export-btn" type="button" onClick={handleExportExcelItems} disabled={loading}>
+            Export to Excel
+          </button>
+        </>
+      );
+    }
+    if (activeTab === "expenses") {
+      return (
+        <>
+          <button className="add-appointment-btn" onClick={() => setShowCreateExpenseModal(true)} disabled={loading}>
+            + New Expense
+          </button>
+          <button className="export-btn" type="button" onClick={handleExportExcelExpenses} disabled={loading}>
+            Export to Excel
+          </button>
+        </>
+      );
+    }
+    return null;
+  }, [activeTab, loading, services, items, expenses]);
 
   return (
     <div className="container">
-      {/* Header (Payments-like) */}
+      {/* Header */}
       <div className="appointments-header-row">
-        <h2>Items</h2>
+        <h2>
+          {activeTab === "services" && "Services"}
+          {activeTab === "stock" && "Items"}
+          {activeTab === "expenses" && "Expenses"}
+        </h2>
         {headerActions}
       </div>
 
-      {/* Tabs (Payments-like) */}
+      {/* Tabs */}
       <div className="appointments-tabs">
         <button
           type="button"
@@ -252,7 +344,6 @@ export default function Services() {
         >
           Services
         </button>
-
         <button
           type="button"
           className={`tab ${activeTab === "stock" ? "active" : ""}`}
@@ -260,6 +351,14 @@ export default function Services() {
           disabled={loading}
         >
           Stock
+        </button>
+        <button
+          type="button"
+          className={`tab ${activeTab === "expenses" ? "active" : ""}`}
+          onClick={() => setActiveTab("expenses")}
+          disabled={loading}
+        >
+          Expenses
         </button>
       </div>
 
@@ -281,7 +380,6 @@ export default function Services() {
                   <th>Actions</th>
                 </tr>
               </thead>
-
               <tbody>
                 {services.length > 0 ? (
                   services.map((s) => {
@@ -419,7 +517,6 @@ export default function Services() {
                   <th>Actions</th>
                 </tr>
               </thead>
-
               <tbody>
                 {items.length > 0 ? (
                   items.map((i) => {
@@ -536,6 +633,82 @@ export default function Services() {
                     {loading ? "Deleting..." : "Delete"}
                   </button>
                   <button type="button" className="secondary" onClick={() => setDeleteItemConfirmId(null)} disabled={loading}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* EXPENSES TAB */}
+      {activeTab === "expenses" && (
+        <>
+          <div className="card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.length > 0 ? (
+                  expenses.map((e) => (
+                    <tr key={e.id}>
+                      <td>{e.name}</td>
+                      <td className="actions">
+                        <button type="button" className="secondary" onClick={() => setEditingExpense(e)} disabled={loading}>
+                          Edit
+                        </button>
+                        <button type="button" className="danger" onClick={() => setDeleteExpenseConfirmId(e.id)} disabled={loading}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="2" style={{ textAlign: "center", color: "#9ca3af" }}>No expenses yet</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {showCreateExpenseModal && (
+            <ExpenseModal
+              title="New Expense"
+              loading={loading}
+              initialValues={{ name: "" }}
+              onClose={() => setShowCreateExpenseModal(false)}
+              onSubmit={values => handleCreateExpense({ name: values.name })}
+              submitLabel="Create"
+            />
+          )}
+
+          {editingExpense && (
+            <ExpenseModal
+              title="Edit Expense"
+              loading={loading}
+              initialValues={{ name: editingExpense.name || "" }}
+              onClose={() => setEditingExpense(null)}
+              onSubmit={values => handleUpdateExpense(editingExpense.id, { name: values.name })}
+              submitLabel="Save"
+            />
+          )}
+
+          {deleteExpenseConfirmId && (
+            <div className="modal-overlay" onClick={() => setDeleteExpenseConfirmId(null)}>
+              <div className="modal-content modal-confirm" onClick={e => e.stopPropagation()}>
+                <h3>Delete Expense</h3>
+                <p>Are you sure you want to delete this expense? This action cannot be undone.</p>
+                <div className="modal-actions">
+                  <button className="danger" onClick={handleConfirmDeleteExpense} disabled={loading}>
+                    {loading ? "Deleting..." : "Delete"}
+                  </button>
+                  <button type="button" className="secondary" onClick={() => setDeleteExpenseConfirmId(null)} disabled={loading}>
                     Cancel
                   </button>
                 </div>
@@ -770,6 +943,45 @@ function ItemModal({ title, initialValues, loading, onClose, onSubmit, submitLab
             <button type="button" className="secondary" onClick={onClose} disabled={loading}>
               Cancel
             </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Модалка для добавления/редактирования расходов
+function ExpenseModal({ title, loading, initialValues, onClose, onSubmit, submitLabel }) {
+  const [name, setName] = useState(initialValues.name);
+
+  useEffect(() => {
+    setName(initialValues.name);
+  }, [initialValues]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit({ name });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Expense Name *</label>
+            <input
+              type="text"
+              placeholder="e.g., Rent"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
+          <div className="modal-actions">
+            <button type="submit" disabled={loading}>{loading ? "Saving..." : submitLabel}</button>
+            <button type="button" className="secondary" onClick={onClose} disabled={loading}>Cancel</button>
           </div>
         </form>
       </div>

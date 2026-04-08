@@ -69,7 +69,7 @@ router.post("/schedule-insights", authenticateToken, async (req, res) => {
     const schema = await resolveTenantSchema(req);
     console.log(`Schedule insights for period ${from} to ${to}`);
 
-    const scheduleData = await reportsService.getScheduleAnalysis(schema, from, to);
+    const scheduleData = await scheduleService.getScheduleAnalysis(schema, from, to);
     const insights = await generateScheduleInsights(scheduleData);
 
     res.json(insights);
@@ -204,20 +204,22 @@ router.get("/master-performance", authenticateToken, async (req, res) => {
 
     let query = `
       SELECT 
-        master_id, 
-        master_name, 
-        revenue_generated, 
-        commission, 
-        gross_margin, 
-        net_margin, 
-        appointments_completed, 
-        appointments_cancelled, 
-        appointments_planned, 
-        hours_worked, 
-        revenue_per_hour, 
-        margin_percent, 
-        net_margin_percent
-      FROM ${schema}.master_performance
+        mp.master_id, 
+        mp.master_name, 
+        mp.revenue_generated, 
+        mp.commission, 
+        mp.gross_margin, 
+        mp.net_margin, 
+        mp.appointments_completed, 
+        mp.appointments_cancelled, 
+        mp.appointments_planned, 
+        mp.hours_worked, 
+        mp.revenue_per_hour, 
+        mp.margin_percent, 
+        mp.net_margin_percent,
+        m.photo_url
+      FROM ${schema}.master_performance mp
+      LEFT JOIN ${schema}.masters m ON mp.master_id = m.id
       WHERE 1=1
     `;
 

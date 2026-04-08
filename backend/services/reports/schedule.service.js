@@ -15,9 +15,7 @@ async function getScheduleAnalysis(schema, from, to) {
         COUNT(CASE WHEN a.status = 'completed' THEN 1 END) as completedAppointments,
         COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END) as cancelledCount,
         COUNT(*) as totalAppointments,
-        AVG(EXTRACT(EPOCH FROM (a.end_time - a.start_time)) / 60)::INTEGER as avgDurationMin,
-        EXTRACT(DOW FROM a.start_time) as dayOfWeek,
-        EXTRACT(DOW FROM a.start_time)::TEXT as dayName
+        AVG(EXTRACT(EPOCH FROM (a.end_time - a.start_time)) / 60)::INTEGER as avgDurationMin
       FROM ${schema}.masters m
       LEFT JOIN ${schema}.appointments a ON m.id = a.master_id 
         AND a.start_time >= $1::timestamp
@@ -28,69 +26,45 @@ async function getScheduleAnalysis(schema, from, to) {
 
     const result = await db.query(query, [from, to]);
     
-    // Группируем по мастерам и дням недели
-    const masterAnalysis = {};
-    result.rows.forEach(row => {
-      if (!masterAnalysis[row.id]) {
-        masterAnalysis[row.id] = {
-          id: row.id,
-          masterName: row.masterName,
-          totalAppointments: 0,
-          cancelledCount: 0,
-          avgDurationMin: 0,
-          byDay: {},
-          allRecords: []
-        };
-      }
+    // Формируем masterInsights напрямую
+    const masterInsights = result.rows.map(row => ({
+   id: row.id,
+  masterName: row.mastername,
+  totalAppointments: parseInt(row.totalappointments, 10) || 0,
+  cancelledCount: parseInt(row.cancelledcount, 10) || 0,
+  avgDurationMin: parseInt(row.avgdurationmin, 10) || 0,
+  availabilityPercent: 100 - Math.min(100, (parseInt(row.totalappointments, 10) / 20) * 100),
+  recommendations: "Good availability balance. Focus on filling flexible slots."
+}));
 
-      masterAnalysis[row.id].totalAppointments += row.totalAppointments;
-      masterAnalysis[row.id].cancelledCount += row.cancelledCount;
-      masterAnalysis[row.id].allRecords.push(row);
-
-      if (row.dayOfWeek !== null) {
-        const dayName = getDayName(row.dayOfWeek);
-        masterAnalysis[row.id].byDay[dayName] = {
-          appointments: row.totalAppointments,
-          completed: row.completedAppointments,
-          cancelled: row.cancelledCount,
-          avgDuration: row.avgDurationMin
-        };
-      }
-    });
 
     // Получаем услуги и их длительность
     const servicesQuery = `
       SELECT 
         s.id,
         s.name,
-        s.duration_min as duration,
+        s.duration as duration,
         COUNT(a.id) as usageCount
       FROM ${schema}.services s
       LEFT JOIN ${schema}.appointments a ON s.id = a.service_id
         AND a.start_time >= $1::timestamp
         AND a.start_time < $2::timestamp
-      GROUP BY s.id, s.name, s.duration_min
+      GROUP BY s.id, s.name, s.duration
       ORDER BY usageCount DESC
     `;
 
     const servicesResult = await db.query(servicesQuery, [from, to]);
-
+ console.log('SCHEDULE RESPONSE:', masterInsights);
     return {
-      masterAnalysis,
-      services: servicesResult.rows,
-      period: { from, to }
-    };
+      masterAnalysis: masterInsights,
+  services: servicesResult.rows,
+  period: { from, to }
+};
   } catch (error) {
     console.error("Schedule analysis error:", error);
     throw error;
   }
 }
-
-function getDayName(dayOfWeek) {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return days[dayOfWeek];
-}
-
 module.exports = {
   getScheduleAnalysis,
 };
