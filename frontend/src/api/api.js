@@ -151,44 +151,10 @@ export const fetchClientsByType = (token, type) => {
 export const deletePayment = (token, id) => apiRequest(`/payments/${id}`, "DELETE", null, token);
 
 //Expenses
-export async function fetchExpenses(token) {
-  const res = await fetch("/api/expenses", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Failed to fetch expenses");
-  return await res.json();
-}
+export const fetchExpenses = (token) => apiRequest("/expenses", "GET", null, token);
 
-export async function createExpense(token, data) {
-  const res = await fetch("/api/expenses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to create expense");
-}
+export const createExpense = (token, data) => apiRequest("/expenses", "POST", data, token);
 
-export async function updateExpense(token, id, data) {
-  const res = await fetch(`/api/expenses/${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to update expense");
-}
+export const updateExpense = (token, id, data) => apiRequest(`/expenses/${id}`, "PUT", data, token);
 
-export async function deleteExpense(token, id) {
-  const res = await fetch(`/api/expenses/${id}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!res.ok) throw new Error("Failed to delete expense");
-}
+export const deleteExpense = (token, id) => apiRequest(`/expenses/${id}`, "DELETE", null, token);
