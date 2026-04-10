@@ -35,21 +35,23 @@ if (!fs.existsSync(uploadsPath)) fs.mkdirSync(uploadsPath, { recursive: true });
 // IMPORTANT: fallthrough:false ensures missing files don't reach your JSON 404 handler
 app.use("/uploads", express.static(uploadsPath, { fallthrough: false }));
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://127.0.0.1:5174",
-      "http://46.225.185.172:5173",
-      "http://46.225.185.172:5174",
-    ],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 200,
-  })
-);
+const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://46.225.185.172',
+  'http://46.225.185.172:5173',
+  'http://46.225.185.172:5174',
+];
+
+app.use(cors({ 
+  origin: allowedOrigins, 
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 200,
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
