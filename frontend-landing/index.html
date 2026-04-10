@@ -1,0 +1,303 @@
+cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELSA Beauty - Salon Management System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 20px;
+            transition: opacity 0.3s;
+        }
+        
+        nav a:hover {
+            opacity: 0.8;
+        }
+        
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 100px 0;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 40px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .features {
+            padding: 80px 0;
+            background: #f8f9fa;
+        }
+        
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 50px;
+            color: #333;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .feature-card p {
+            color: #666;
+        }
+        
+        .pricing {
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .pricing h2 {
+            font-size: 2.5rem;
+            margin-bottom: 50px;
+            color: #333;
+        }
+        
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .price-card {
+            background: white;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            padding: 40px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .price-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+        
+        .price-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .price {
+            font-size: 2.5rem;
+            color: #667eea;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        
+        .price-features {
+            list-style: none;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .price-features li {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            color: #666;
+        }
+        
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 30px 0;
+            margin-top: 50px;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            nav a {
+                margin: 0 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">ELSA ERP</div>
+            <div>
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="https://app.elsaerp.com" class="btn">Sign In</a>
+            </div>
+        </nav>
+    </header>
+    
+    <section class="hero">
+        <div class="container">
+            <h1>ELSA Beauty ERP</h1>
+            <p>Complete Beauty Salon Management System</p>
+            <a href="https://app.elsaerp.com" class="btn">Get Started</a>
+        </div>
+    </section>
+    
+    <section class="features" id="features">
+        <div class="container">
+            <h2>Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>📅 Schedule Management</h3>
+                    <p>Easily manage appointments and master schedules</p>
+                </div>
+                <div class="feature-card">
+                    <h3>💳 Payment Processing</h3>
+                    <p>Integrated payment processing and invoicing system</p>
+                </div>
+                <div class="feature-card">
+                    <h3>👥 Client Management</h3>
+                    <p>Maintain client database and visit history</p>
+                </div>
+                <div class="feature-card">
+                    <h3>📊 Analytics & Reports</h3>
+                    <p>Detailed reports on revenue and performance</p>
+                </div>
+                <div class="feature-card">
+                    <h3>👨‍💼 Staff Management</h3>
+                    <p>Manage personnel and their schedules</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🛍️ Service Management</h3>
+                    <p>Catalog of services and products with pricing</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section class="pricing" id="pricing">
+        <div class="container">
+            <h2>Pricing Plans</h2>
+            <div class="pricing-grid">
+                <div class="price-card">
+                    <h3>Starter</h3>
+                    <div class="price">$9.99<span style="font-size: 1rem; color: #999;">/month</span></div>
+                    <ul class="price-features">
+                        <li>✓ Up to 5 masters</li>
+                        <li>✓ Schedule management</li>
+                        <li>✓ Basic analytics</li>
+                        <li>✗ Payment integration</li>
+                    </ul>
+                    <a href="https://app.elsaerp.com" class="btn">Start</a>
+                </div>
+                
+                <div class="price-card">
+                    <h3>Professional</h3>
+                    <div class="price">$29.99<span style="font-size: 1rem; color: #999;">/month</span></div>
+                    <ul class="price-features">
+                        <li>✓ Unlimited masters</li>
+                        <li>✓ Schedule management</li>
+                        <li>✓ Advanced analytics</li>
+                        <li>✓ Payment integration</li>
+                    </ul>
+                    <a href="https://app.elsaerp.com" class="btn">Choose</a>
+                </div>
+                
+                <div class="price-card">
+                    <h3>Premium</h3>
+                    <div class="price">$99.99<span style="font-size: 1rem; color: #999;">/month</span></div>
+                    <ul class="price-features">
+                        <li>✓ Everything in Professional</li>
+                        <li>✓ Priority support</li>
+                        <li>✓ Customization</li>
+                        <li>✓ API access</li>
+                    </ul>
+                    <a href="https://app.elsaerp.com" class="btn">Contact</a>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 ELSA Beauty ERP. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>
+EOF
