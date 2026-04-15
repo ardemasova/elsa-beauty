@@ -43,6 +43,8 @@ const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
   'http://46.225.185.172',
   'http://46.225.185.172:5173',
   'http://46.225.185.172:5174',
+  'https://app.elsaerp.com',
+  'https://www.app.elsaerp.com',
 ];
 
 app.use(cors({ 
