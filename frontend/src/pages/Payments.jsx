@@ -5,7 +5,7 @@ import { fetchClients, fetchAppointments, fetchItems, fetchServices, fetchExpens
 import "./Payments.css";
 import * as XLSX from "xlsx";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 // VAT API helper (same as Settings)
 async function vatFetch(path, token, options = {}) {

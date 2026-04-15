@@ -13,7 +13,7 @@ import "./Settings.css";
  *  PATCH  /api/vat/:id/default
  *  DELETE /api/vat/:id
  */
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 async function vatFetch(path, token, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
