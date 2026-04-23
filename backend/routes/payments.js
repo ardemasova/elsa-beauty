@@ -2,13 +2,14 @@ const express = require("express");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
+const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
 
 const isPositiveNumber = (v) => !isNaN(v) && parseFloat(v) > 0;
 
 // GET all payments (supports expense_id now)
-router.get("/", authenticateToken, async (req, res) => {
+router.get("/", authenticateToken, requireFeature('payments'), async (req, res) => {
   const userId = req.user.id;
   const role = req.user.role;
   const type = req.query.type || "all";
@@ -69,7 +70,7 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 // GET single payment by id (supports expense)
-router.get("/:id", authenticateToken, async (req, res) => {
+router.get("/:id", authenticateToken, requireFeature('payments'), async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
   const role = req.user.role;
@@ -130,7 +131,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
 });
 
 // POST create payment: now supports expense_id
-router.post("/", authenticateToken, async (req, res) => {
+router.post("/", authenticateToken, requireFeature('payments'), async (req, res) => {
   const { partner_id, appointment_id, item_id, expense_id, qty, amount, vat_percent, method, type = "incoming" } = req.body;
   const userId = req.user.id;
   const role = req.user.role;
@@ -243,7 +244,7 @@ router.post("/", authenticateToken, async (req, res) => {
 });
 
 // PUT update payment
-router.put("/:id", authenticateToken, async (req, res) => {
+router.put("/:id", authenticateToken, requireFeature('payments'), async (req, res) => {
   const { id } = req.params;
   const { partner_id, appointment_id, item_id, expense_id, qty, amount, vat_percent, method, type } = req.body;
   const userId = req.user.id;
@@ -363,7 +364,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
 });
 
 // DELETE payment (no change needed)
-router.delete("/:id", authenticateToken, async (req, res) => {
+router.delete("/:id", authenticateToken, requireFeature('payments'), async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
   const role = req.user.role;
@@ -394,7 +395,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 });
 
 // GET invoice data for payment (supports expense)
-router.get("/:id/invoice", authenticateToken, async (req, res) => {
+router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
   const role = req.user.role;

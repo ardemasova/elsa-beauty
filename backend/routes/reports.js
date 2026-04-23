@@ -9,13 +9,14 @@ const {
 } = require("../services/ai/reportSummary");
 const scheduleService = require("../services/reports/schedule.service");
 const { resolveTenantSchema } = require("../utils/tenant");
+const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
 
 // =======================
 // POST Admin Chat
 // =======================
-router.post("/admin-chat", authenticateToken, async (req, res) => {
+router.post("/admin-chat", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { question, from, to } = req.body;
 
   if (!question || !from || !to) {
@@ -56,7 +57,7 @@ User Question: ${question}`;
 // =======================
 // POST Schedule Insights
 // =======================
-router.post("/schedule-insights", authenticateToken, async (req, res) => {
+router.post("/schedule-insights", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.body;
 
   if (!from || !to) {
@@ -82,7 +83,7 @@ router.post("/schedule-insights", authenticateToken, async (req, res) => {
 // =======================
 // POST AI report summary
 // =======================
-router.post("/ai-summary", authenticateToken, async (req, res) => {
+router.post("/ai-summary", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.body;
 
   if (!from || !to) {
@@ -108,7 +109,7 @@ router.post("/ai-summary", authenticateToken, async (req, res) => {
 // =======================
 // GET summary all
 // =======================
-router.get("/summary-all", authenticateToken, async (req, res) => {
+router.get("/summary-all", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -130,7 +131,7 @@ router.get("/summary-all", authenticateToken, async (req, res) => {
 // =======================
 // GET summary statistics
 // =======================
-router.get("/summary", authenticateToken, async (req, res) => {
+router.get("/summary", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -152,7 +153,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
 // =======================
 // GET cancelled appointments
 // =======================
-router.get("/cancelled", authenticateToken, async (req, res) => {
+router.get("/cancelled", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -174,7 +175,7 @@ router.get("/cancelled", authenticateToken, async (req, res) => {
 // =======================
 // GET average check
 // =======================
-router.get("/average-check", authenticateToken, async (req, res) => {
+router.get("/average-check", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -196,7 +197,7 @@ router.get("/average-check", authenticateToken, async (req, res) => {
 // =======================
 // GET master performance
 // =======================
-router.get("/master-performance", authenticateToken, async (req, res) => {
+router.get("/master-performance", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { startDate, endDate, masterId } = req.query;
 
   try {
@@ -243,7 +244,7 @@ router.get("/master-performance", authenticateToken, async (req, res) => {
 // =======================
 // GET revenue by day
 // =======================
-router.get("/revenue-by-day", authenticateToken, async (req, res) => {
+router.get("/revenue-by-day", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -277,7 +278,7 @@ router.get("/revenue-by-day", authenticateToken, async (req, res) => {
 // =======================
 // GET revenue by master
 // =======================
-router.get("/revenue-by-master", authenticateToken, async (req, res) => {
+router.get("/revenue-by-master", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -317,7 +318,7 @@ router.get("/revenue-by-master", authenticateToken, async (req, res) => {
 // =======================
 // GET revenue by service
 // =======================
-router.get("/revenue-by-service", authenticateToken, async (req, res) => {
+router.get("/revenue-by-service", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -356,7 +357,7 @@ router.get("/revenue-by-service", authenticateToken, async (req, res) => {
 // =======================
 // GET COGS Report
 // =======================
-router.get("/cogs-report", authenticateToken, async (req, res) => {
+router.get("/cogs-report", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to, groupBy } = req.query;
 
   if (!from || !to) {
@@ -408,7 +409,7 @@ router.get("/cogs-report", authenticateToken, async (req, res) => {
 // =======================
 // GET COGS Summary
 // =======================
-router.get("/cogs-summary", authenticateToken, async (req, res) => {
+router.get("/cogs-summary", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {

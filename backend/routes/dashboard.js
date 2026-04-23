@@ -2,13 +2,14 @@ const express = require("express");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
+const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
 
 // =======================
 // GET dashboard stats
 // =======================
-router.get("/stats", authenticateToken, async (req, res) => {
+router.get("/stats", authenticateToken, requireFeature('dashboard'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -94,7 +95,7 @@ router.get("/stats", authenticateToken, async (req, res) => {
 // =======================
 // GET appointments by date range
 // =======================
-router.get("/appointments", authenticateToken, async (req, res) => {
+router.get("/appointments", authenticateToken, requireFeature('dashboard'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -144,7 +145,7 @@ router.get("/appointments", authenticateToken, async (req, res) => {
 // =======================
 // GET master stats
 // =======================
-router.get("/master-stats", authenticateToken, async (req, res) => {
+router.get("/master-stats", authenticateToken, requireFeature('dashboard'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }

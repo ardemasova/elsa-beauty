@@ -2,13 +2,14 @@ const express = require("express");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
+const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
 
 // =======================
 // GET all services (admin + master)
 // =======================
-router.get("/", authenticateToken, async (req, res) => {
+router.get("/", authenticateToken, requireFeature('items'), async (req, res) => {
   // ✅ allow master to read services (needed for Dashboard / Appointments UI)
   if (!["admin", "master"].includes(req.user.role)) {
     return res.status(403).json({ message: "Forbidden" });
@@ -29,7 +30,7 @@ router.get("/", authenticateToken, async (req, res) => {
 // =======================
 // GET single service by id (admin + master)
 // =======================
-router.get("/:id", authenticateToken, async (req, res) => {
+router.get("/:id", authenticateToken, requireFeature('items'), async (req, res) => {
   if (!["admin", "master"].includes(req.user.role)) {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -58,7 +59,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
 // =======================
 // POST create service (admin only)
 // =======================
-router.post("/", authenticateToken, async (req, res) => {
+router.post("/", authenticateToken, requireFeature('items'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -93,7 +94,7 @@ router.post("/", authenticateToken, async (req, res) => {
 // =======================
 // PUT update service (admin only)
 // =======================
-router.put("/:id", authenticateToken, async (req, res) => {
+router.put("/:id", authenticateToken, requireFeature('items'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -141,7 +142,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
 // =======================
 // DELETE service (admin only)
 // =======================
-router.delete("/:id", authenticateToken, async (req, res) => {
+router.delete("/:id", authenticateToken, requireFeature('items'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }

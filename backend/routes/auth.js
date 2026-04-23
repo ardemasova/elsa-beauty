@@ -70,4 +70,17 @@ router.post('/login', async (req, res) => {
   }
 });
 
+const tenantResult = await db.query(
+  `SELECT t.id, t.name, p.code as plan_code 
+   FROM public.tenants t
+   LEFT JOIN plans p ON p.id = t.plan_id
+   WHERE t.id = $1`,
+  [tenantId]
+);
+
+const token = jwt.sign({
+  tenantId: tenant.id,
+  plan: tenant.plan_code
+}, process.env.JWT_SECRET);
+
 module.exports = router;

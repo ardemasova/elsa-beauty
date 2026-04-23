@@ -2,13 +2,15 @@ const express = require("express");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
+const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
+
 
 // =======================
 // GET all appointments (optionally by date range)
 // =======================
-router.get("/", authenticateToken, async (req, res) => {
+router.get("/", authenticateToken, requireFeature('appointments'), async (req, res) => {
   const role = req.user.role;
   const { start_date, end_date } = req.query;
 
@@ -65,7 +67,7 @@ router.get("/", authenticateToken, async (req, res) => {
 // =======================
 // GET single appointment by id
 // =======================
-router.get("/:id", authenticateToken, async (req, res) => {
+router.get("/:id", authenticateToken, requireFeature('appointments'), async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   const role = req.user.role;
@@ -124,7 +126,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
 // =======================
 // POST create appointment
 // =======================
-router.post("/", authenticateToken, async (req, res) => {
+router.post("/", authenticateToken, requireFeature('appointments'), async (req, res) => {
   const { master_id, client_id, service_id, start_time } = req.body;
   const userId = req.user.userId;
   const role = req.user.role;
@@ -258,7 +260,7 @@ router.post("/", authenticateToken, async (req, res) => {
 // =======================
 // PUT update appointment
 // =======================
-router.put("/:id", authenticateToken, async (req, res) => {
+router.put("/:id", authenticateToken, requireFeature('appointments'), async (req, res) => {
   const { id } = req.params;
   const { master_id, client_id, service_id, start_time, status } = req.body;
   const userId = req.user.userId;
@@ -372,7 +374,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
 // =======================
 // DELETE appointment
 // =======================
-router.delete("/:id", authenticateToken, async (req, res) => {
+router.delete("/:id", authenticateToken, requireFeature('appointments'), async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   const role = req.user.role;

@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
+const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ const router = express.Router();
 // GET my master profile (admin/master)
 // =======================
 // Must be defined BEFORE "/:id" route
-router.get("/me", authenticateToken, async (req, res) => {
+router.get("/me", authenticateToken, requireFeature('masters'), async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
@@ -52,7 +53,7 @@ router.get("/me", authenticateToken, async (req, res) => {
 // - admin: full
 // - master: limited list (for viewing appointments/calendar)
 // =======================
-router.get("/", authenticateToken, async (req, res) => {
+router.get("/", authenticateToken, requireFeature('masters'), async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
@@ -88,7 +89,7 @@ router.get("/", authenticateToken, async (req, res) => {
 // =======================
 // GET single master by id (admin only)
 // =======================
-router.get("/:id", authenticateToken, async (req, res) => {
+router.get("/:id", authenticateToken, requireFeature('masters'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -114,7 +115,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
 // =======================
 // POST create master (admin only)
 // =======================
-router.post("/", authenticateToken, async (req, res) => {
+router.post("/", authenticateToken, requireFeature('masters'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -149,7 +150,7 @@ router.post("/", authenticateToken, async (req, res) => {
 // =======================
 // PUT update master (admin only)
 // =======================
-router.put("/:id", authenticateToken, async (req, res) => {
+router.put("/:id", authenticateToken, requireFeature('masters'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -192,7 +193,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
 // =======================
 // DELETE master (admin only)
 // =======================
-router.delete("/:id", authenticateToken, async (req, res) => {
+router.delete("/:id", authenticateToken, requireFeature('masters'), async (req, res) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
