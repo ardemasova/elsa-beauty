@@ -18,7 +18,7 @@ function generateAccessToken(user, schemaName) {
       tenantId: user.tenant_id,
       role: user.role,
       email: user.email,
-      schema_name: schemaName, // ✅ add
+      schema_name: schemaName,
     },
     ACCESS_TOKEN_SECRET,
     { expiresIn: '1h' }
@@ -37,7 +37,6 @@ router.post('/login', async (req, res) => {
   const schema = schema_name.trim();
 
   try {
-    // ✅ still uses public.users, but disambiguates by schema_name via tenants table
     const { rows } = await db.query(
       `
       SELECT u.*, t.schema_name
@@ -55,32 +54,18 @@ router.post('/login', async (req, res) => {
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
 
-    // ✅ log email + schema (now unambiguous)
     console.log(`[LOGIN] email=${email} schema=${schema} tenant_id=${user.tenant_id}`);
 
     const token = generateAccessToken(user, schema);
 
     return res.json({
       token,
-      schema_name: schema, // optional but useful
+      schema_name: schema,
     });
   } catch (err) {
     console.error('LOGIN ERROR:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 });
-
-const tenantResult = await db.query(
-  `SELECT t.id, t.name, p.code as plan_code 
-   FROM public.tenants t
-   LEFT JOIN plans p ON p.id = t.plan_id
-   WHERE t.id = $1`,
-  [tenantId]
-);
-
-const token = jwt.sign({
-  tenantId: tenant.id,
-  plan: tenant.plan_code
-}, process.env.JWT_SECRET);
 
 module.exports = router;
