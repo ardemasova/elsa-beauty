@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const db = require('./db'); 
 
 const authRoutes = require("./routes/auth");
 const usersRoutes = require("./routes/users");
@@ -57,6 +58,12 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use((req, res, next) => {
+  req.db = db;  
+  next();
+});
+
 
 // Logger
 app.use((req, res, next) => {

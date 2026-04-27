@@ -1,4 +1,3 @@
-cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,18 +12,23 @@ cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
             line-height: 1.6;
-            color: #333;
+            color: #1f2937;
+            background: #ffffff;
         }
         
+        /* Header */
         header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1rem 0;
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 20px 32px;
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         
         .container {
@@ -37,163 +41,423 @@ cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 40px;
         }
         
         .logo {
-            font-size: 1.8rem;
-            font-weight: bold;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.5px;
+        }
+        
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 40px;
         }
         
         nav a {
-            color: white;
+            color: #6b7280;
             text-decoration: none;
-            margin: 0 20px;
-            transition: opacity 0.3s;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: color 0.3s;
         }
         
         nav a:hover {
-            opacity: 0.8;
+            color: #b96c86;
         }
         
+        /* Hero Section */
         .hero {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%);
             color: white;
-            padding: 100px 0;
+            padding: 120px 32px;
             text-align: center;
         }
         
-        .hero h1 {
-            font-size: 3rem;
-            margin-bottom: 20px;
+        .hero-content {
+            max-width: 800px;
+            margin: 0 auto;
         }
         
-        .hero p {
-            font-size: 1.2rem;
-            margin-bottom: 30px;
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: #d1d5db;
+            margin-bottom: 40px;
+            font-weight: 500;
         }
         
         .btn {
             display: inline-block;
-            background: white;
-            color: #667eea;
-            padding: 12px 40px;
-            border-radius: 5px;
+            background: #b96c86;
+            color: white;
+            padding: 12px 32px;
+            border-radius: 6px;
             text-decoration: none;
-            font-weight: bold;
-            transition: transform 0.3s, box-shadow 0.3s;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
         }
         
         .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            background: #a65e76;
+            box-shadow: 0 4px 12px rgba(185, 108, 134, 0.3);
+            transform: translateY(-2px);
         }
         
+        .btn-secondary {
+            background: white;
+            color: #b96c86;
+            margin-left: 12px;
+        }
+        
+        .btn-secondary:hover {
+            background: #f3f4f6;
+            color: #a65e76;
+        }
+        
+        /* Features Section */
         .features {
-            padding: 80px 0;
-            background: #f8f9fa;
+            padding: 80px 32px;
+            background: #ffffff;
+            border-top: 1px solid #e5e7eb;
         }
         
         .features h2 {
             text-align: center;
             font-size: 2.5rem;
-            margin-bottom: 50px;
-            color: #333;
+            margin-bottom: 60px;
+            color: #0f172a;
+            font-weight: 800;
+            letter-spacing: -0.5px;
         }
         
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
         }
         
         .feature-card {
             background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            text-align: center;
+            padding: 32px 24px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            border-left: 4px solid #ac9186;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+            text-align: left;
+        }
+        
+        .feature-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+            border-left-color: #8f7365;
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
         }
         
         .feature-card h3 {
-            color: #667eea;
-            margin-bottom: 15px;
+            color: #0f172a;
+            margin-bottom: 12px;
+            font-weight: 700;
+            font-size: 1.125rem;
         }
         
         .feature-card p {
-            color: #666;
+            color: #6b7280;
+            line-height: 1.6;
+            font-size: 0.95rem;
         }
         
+        /* Pricing Section */
         .pricing {
-            padding: 80px 0;
+            padding: 80px 32px;
+            background: #f9f7f2;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .pricing-header {
             text-align: center;
+            margin-bottom: 50px;
         }
         
         .pricing h2 {
             font-size: 2.5rem;
+            margin-bottom: 30px;
+            color: #0f172a;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        
+        .pricing-description {
+            font-size: 1.1rem;
+            color: #6b7280;
+            margin-bottom: 40px;
+        }
+        
+        /* Toggle Switch */
+        .toggle-container {
+            display: flex;
+            justify-content: center;
             margin-bottom: 50px;
-            color: #333;
+        }
+        
+        .toggle-switch {
+            background: white;
+            border-radius: 999px;
+            padding: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 0;
+        }
+        
+        .toggle-switch button {
+            padding: 10px 28px;
+            border: none;
+            border-radius: 999px;
+            background: transparent;
+            color: #6b7280;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+        
+        .toggle-switch button.active {
+            background: #0f172a;
+            color: white;
+        }
+        
+        .toggle-switch button:hover:not(.active) {
+            color: #b96c86;
         }
         
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
         }
         
         .price-card {
             background: white;
-            border: 2px solid #eee;
-            border-radius: 8px;
-            padding: 40px;
-            transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 40px 32px;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        .price-card.highlight {
+            border-color: #b96c86;
+            box-shadow: 0 8px 24px rgba(185, 108, 134, 0.15);
+            transform: translateY(-4px);
         }
         
         .price-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            border-color: #667eea;
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        .price-card.highlight:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 16px 32px rgba(185, 108, 134, 0.2);
+        }
+        
+        .price-badge {
+            position: absolute;
+            -top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        
+        .price-card.highlight .price-badge {
+            background: #b96c86;
         }
         
         .price-card h3 {
             font-size: 1.5rem;
-            margin-bottom: 20px;
-            color: #333;
+            margin-bottom: 12px;
+            color: #0f172a;
+            font-weight: 700;
         }
         
-        .price {
+        .price-description {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .price-amount {
             font-size: 2.5rem;
-            color: #667eea;
+            color: #b96c86;
+            font-weight: 800;
             margin: 20px 0;
-            font-weight: bold;
+            letter-spacing: -0.5px;
+        }
+        
+        .price-period {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            margin-bottom: 30px;
+        }
+        
+        .price-card .btn {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 12px 20px;
+            font-size: 0.95rem;
         }
         
         .price-features {
             list-style: none;
-            margin: 30px 0;
-            text-align: left;
+            margin-bottom: 20px;
+            flex-grow: 1;
         }
         
         .price-features li {
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-            color: #666;
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-weight: 500;
+            font-size: 0.95rem;
         }
         
+        .price-features li:last-child {
+            border-bottom: none;
+        }
+        
+        .price-features li::before {
+            content: "✓ ";
+            color: #b96c86;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+        
+        .price-limits {
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .price-limits h4 {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        
+        .price-limits ul {
+            list-style: none;
+        }
+        
+        .price-limits li {
+            padding: 6px 0;
+            border: none;
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+        
+        .price-limits li::before {
+            content: "• ";
+            margin-right: 8px;
+        }
+        
+        /* Footer */
         footer {
-            background: #333;
+            background: #0f172a;
             color: white;
             text-align: center;
-            padding: 30px 0;
-            margin-top: 50px;
+            padding: 40px 32px;
+            border-top: 1px solid #e5e7eb;
         }
         
+        footer p {
+            color: #9ca3af;
+            font-weight: 500;
+        }
+        
+        /* Responsive */
         @media (max-width: 768px) {
             .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+            
+            nav {
+                flex-wrap: wrap;
+                gap: 20px;
+            }
+            
+            .nav-links {
+                width: 100%;
+                gap: 20px;
+            }
+            
+            .btn-secondary {
+                margin-left: 0;
+                margin-top: 12px;
+            }
+            
+            .features h2,
+            .pricing h2 {
                 font-size: 2rem;
             }
             
-            nav a {
-                margin: 0 10px;
+            .features-grid,
+            .pricing-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            header {
+                padding: 16px;
+            }
+            
+            .hero {
+                padding: 80px 16px;
+            }
+            
+            .features,
+            .pricing {
+                padding: 60px 16px;
+            }
+            
+            .toggle-switch button {
+                padding: 8px 20px;
+                font-size: 0.9rem;
             }
         }
     </style>
@@ -202,7 +466,7 @@ cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
     <header>
         <nav class="container">
             <div class="logo">ELSA ERP</div>
-            <div>
+            <div class="nav-links">
                 <a href="#features">Features</a>
                 <a href="#pricing">Pricing</a>
                 <a href="https://app.elsaerp.com" class="btn">Sign In</a>
@@ -212,9 +476,13 @@ cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
     
     <section class="hero">
         <div class="container">
-            <h1>ELSA Beauty ERP</h1>
-            <p>Complete Beauty Salon Management System</p>
-            <a href="https://app.elsaerp.com" class="btn">Get Started</a>
+            <div class="hero-content">
+                <h1>ELSA Beauty ERP</h1>
+                <p class="hero-subtitle">Complete Beauty Salon Management System</p>
+                <div>
+                    <a href="https://app.elsaerp.com" class="btn">Get Started</a>
+                </div>
+            </div>
         </div>
     </section>
     
@@ -223,28 +491,34 @@ cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
             <h2>Features</h2>
             <div class="features-grid">
                 <div class="feature-card">
-                    <h3>📅 Schedule Management</h3>
+                    <div class="feature-icon">📅</div>
+                    <h3>Appointments</h3>
                     <p>Easily manage appointments and master schedules</p>
                 </div>
                 <div class="feature-card">
-                    <h3>💳 Payment Processing</h3>
+                    <div class="feature-icon">📊</div>
+                    <h3>Dashboard</h3>
+                    <p>Real-time insights into your salon's performance</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <h3>Masters & Users</h3>
+                    <p>Manage personnel and team members efficiently</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💳</div>
+                    <h3>Payments & Invoices</h3>
                     <p>Integrated payment processing and invoicing system</p>
                 </div>
                 <div class="feature-card">
-                    <h3>👥 Client Management</h3>
-                    <p>Maintain client database and visit history</p>
+                    <div class="feature-icon">📈</div>
+                    <h3>Reports</h3>
+                    <p>Detailed analytics on revenue and performance</p>
                 </div>
                 <div class="feature-card">
-                    <h3>📊 Analytics & Reports</h3>
-                    <p>Detailed reports on revenue and performance</p>
-                </div>
-                <div class="feature-card">
-                    <h3>👨‍💼 Staff Management</h3>
-                    <p>Manage personnel and their schedules</p>
-                </div>
-                <div class="feature-card">
-                    <h3>🛍️ Service Management</h3>
-                    <p>Catalog of services and products with pricing</p>
+                    <div class="feature-icon">🤖</div>
+                    <h3>AI Assistant</h3>
+                    <p>Intelligent recommendations powered by AI</p>
                 </div>
             </div>
         </div>
@@ -252,42 +526,87 @@ cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
     
     <section class="pricing" id="pricing">
         <div class="container">
-            <h2>Pricing Plans</h2>
+            <div class="pricing-header">
+                <h2>Simple Pricing</h2>
+                <p class="pricing-description">Choose the plan that fits your salon</p>
+            </div>
+            
+            <div class="toggle-container">
+                <div class="toggle-switch">
+                    <button class="toggle-btn active" data-period="monthly">Monthly</button>
+                    <button class="toggle-btn" data-period="yearly">Yearly</button>
+                </div>
+            </div>
+            
             <div class="pricing-grid">
+                <!-- Standard Plan -->
                 <div class="price-card">
-                    <h3>Starter</h3>
-                    <div class="price">$9.99<span style="font-size: 1rem; color: #999;">/month</span></div>
+                    <h3>Standard</h3>
+                    <p class="price-description">For small salons</p>
+                    <div class="price-amount">€<span class="price-value">20</span></div>
+                    <p class="price-period">per <span class="period-text">month</span></p>
+                    <button class="btn">Start</button>
                     <ul class="price-features">
-                        <li>✓ Up to 5 masters</li>
-                        <li>✓ Schedule management</li>
-                        <li>✓ Basic analytics</li>
-                        <li>✗ Payment integration</li>
+                        <li>Appointments</li>
+                        <li>Dashboard</li>
+                        <li>Masters & Users</li>
+                        <li>Payments & Invoices</li>
+                        <li>Basic Reports</li>
+                        <li>AI Assistant</li>
                     </ul>
-                    <a href="https://app.elsaerp.com" class="btn">Start</a>
+                    <div class="price-limits">
+                        <h4>Limits</h4>
+                        <ul>
+                            <li>1 branch</li>
+                            <li>5 masters</li>
+                            <li>5 users</li>
+                        </ul>
+                    </div>
                 </div>
                 
-                <div class="price-card">
-                    <h3>Professional</h3>
-                    <div class="price">$29.99<span style="font-size: 1rem; color: #999;">/month</span></div>
+                <!-- Pro Plan (Highlighted) -->
+                <div class="price-card highlight">
+                    <div class="price-badge">Most popular</div>
+                    <h3>Pro</h3>
+                    <p class="price-description">For growing businesses</p>
+                    <div class="price-amount">€<span class="price-value">50</span></div>
+                    <p class="price-period">per <span class="period-text">month</span></p>
+                    <button class="btn">Upgrade</button>
                     <ul class="price-features">
-                        <li>✓ Unlimited masters</li>
-                        <li>✓ Schedule management</li>
-                        <li>✓ Advanced analytics</li>
-                        <li>✓ Payment integration</li>
+                        <li>Everything in Standard</li>
+                        <li>Advanced Reports</li>
+                        <li>Mobile Access</li>
+                        <li>AI Insights</li>
+                        <li>AI Assistant Pro</li>
                     </ul>
-                    <a href="https://app.elsaerp.com" class="btn">Choose</a>
+                    <div class="price-limits">
+                        <h4>Limits</h4>
+                        <ul>
+                            <li>3 branches</li>
+                            <li>20 masters</li>
+                            <li>20 users</li>
+                        </ul>
+                    </div>
                 </div>
                 
+                <!-- Enterprise Plan -->
                 <div class="price-card">
-                    <h3>Premium</h3>
-                    <div class="price">$99.99<span style="font-size: 1rem; color: #999;">/month</span></div>
+                    <h3>Enterprise</h3>
+                    <p class="price-description">For networks & custom needs</p>
+                    <div class="price-amount">Custom</div>
+                    <p class="price-period">Contact for pricing</p>
+                    <button class="btn">Contact us</button>
                     <ul class="price-features">
-                        <li>✓ Everything in Professional</li>
-                        <li>✓ Priority support</li>
-                        <li>✓ Customization</li>
-                        <li>✓ API access</li>
+                        <li>Everything in Pro</li>
+                        <li>Priority Support</li>
+                        <li>Custom Features</li>
                     </ul>
-                    <a href="https://app.elsaerp.com" class="btn">Contact</a>
+                    <div class="price-limits">
+                        <h4>Limits</h4>
+                        <ul>
+                            <li>Custom limits</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -298,6 +617,37 @@ cat > /home/elsa/ELSA_BEAUTY_git/frontend-landing/dist/index.html << 'EOF'
             <p>&copy; 2026 ELSA Beauty ERP. All rights reserved.</p>
         </div>
     </footer>
+
+    <script>
+        const toggleBtns = document.querySelectorAll('.toggle-btn');
+        const priceValues = document.querySelectorAll('.price-value');
+        const periodTexts = document.querySelectorAll('.period-text');
+        
+        const prices = {
+            standard: { monthly: 20, yearly: 200 },
+            pro: { monthly: 50, yearly: 500 }
+        };
+        
+        toggleBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                toggleBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                const period = btn.dataset.period;
+                const isYearly = period === 'yearly';
+                
+                // Update Standard Plan
+                priceValues[0].textContent = isYearly ? 200 : 20;
+                
+                // Update Pro Plan
+                priceValues[1].textContent = isYearly ? 500 : 50;
+                
+                // Update period text
+                periodTexts.forEach(text => {
+                    text.textContent = isYearly ? 'year' : 'month';
+                });
+            });
+        });
+    </script>
 </body>
 </html>
-EOF
