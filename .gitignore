@@ -14,9 +14,7 @@ node_modules/
 # build artifacts
 frontend/dist/
 frontend/build/
-**/dist/
-**/build/
-**/.vite/
+
 
 # logs
 *.log
