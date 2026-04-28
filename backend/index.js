@@ -17,6 +17,7 @@ const tenantsRouter = require("./routes/tenants");
 const uploadsRoutes = require("./routes/uploads");
 const vatRoutes = require("./routes/vat");
 const expensesRoutes = require('./routes/expenses');
+const demoRegisterRoutes = require('./routes/demo-register');
 
 const path = require("path");
 const fs = require("fs");
@@ -112,6 +113,7 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/tenants", tenantsRouter);
 app.use("/api/vat", vatRoutes);
 app.use('/api/expenses', expensesRoutes);
+app.use("/api/demo-register", demoRegisterRoutes);
 
 // Upload API (POST /api/uploads/...)
 app.use("/api/uploads", uploadsRoutes);
