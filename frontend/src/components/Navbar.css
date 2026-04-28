@@ -275,13 +275,168 @@
 }
 
 /* Responsive */
-@media (max-width: 768px) {
-  .navbar-sidebar {
-    width: 200px;
+
+/* ── Hamburger button (mobile only) ── */
+.hamburger-btn {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 300;
+  width: 44px;
+  height: 44px;
+  background: #005067;
+  border: none;
+  border-radius: 8px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  transform-origin: center;
+}
+
+/* Animate to X when open */
+.hamburger-btn.is-open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.hamburger-btn.is-open span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+.hamburger-btn.is-open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* ── Overlay (mobile) ── */
+.navbar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 150;
+}
+
+@media (max-width: 767px) {
+  /* Show hamburger */
+  .hamburger-btn {
+    display: flex;
   }
 
+  /* Show overlay when menu open */
+  .navbar-overlay {
+    display: block;
+  }
+
+  /* Sidebar: hidden off-screen by default */
+  .navbar-sidebar {
+    width: 220px;
+    transform: translateX(-100%);
+    z-index: 200;
+    transition: transform 0.3s ease, width 0.3s ease;
+  }
+
+  /* Sidebar: slide in when open */
+  .navbar-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Always hide the desktop toggle button on mobile */
+  .toggle-btn {
+    display: none;
+  }
+
+  /* Collapsed state doesn't apply on mobile – keep full width */
   .navbar-sidebar.collapsed {
-    width: 80px;
+    width: 220px;
+  }
+
+  .navbar-sidebar.collapsed .logo-image {
+    opacity: 1;
+    width: auto;
+  }
+
+  .navbar-sidebar.collapsed .nav-item {
+    justify-content: flex-start;
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .navbar-sidebar.collapsed .nav-item span {
+    display: inline;
+  }
+
+  .navbar-sidebar.collapsed .nav-item.active {
+    border-left: 4px solid #feb9c7;
+    border-bottom: none;
+    padding-left: 12px;
+    padding-bottom: 10px;
+  }
+
+  .navbar-sidebar.collapsed .navbar-logout {
+    justify-content: flex-start;
+    padding: 10px 14px;
+    gap: 10px;
+    margin: 24px 12px 0;
+  }
+
+  .navbar-sidebar.collapsed .navbar-logout span {
+    display: inline;
+  }
+}
+
+/* ── Tablet (768px – 1023px): auto-collapsed sidebar ── */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .navbar-sidebar {
+    width: 80px !important;
+  }
+
+  .navbar-sidebar .logo-image {
+    opacity: 0;
+    width: 0;
+  }
+
+  .navbar-sidebar .nav-section-title {
+    display: none;
+  }
+
+  .navbar-sidebar .nav-item {
+    justify-content: center;
+    padding: 10px;
+    gap: 0;
+  }
+
+  .navbar-sidebar .nav-item span {
+    display: none;
+  }
+
+  .navbar-sidebar .nav-item.active {
+    border-left: none;
+    border-bottom: 3px solid #feb9c7;
+    padding-left: 12px;
+    padding-bottom: 9px;
+  }
+
+  .navbar-sidebar .navbar-logout {
+    justify-content: center;
+    padding: 10px;
+    gap: 0;
+    margin: 24px 0 0;
+  }
+
+  .navbar-sidebar .navbar-logout span {
+    display: none;
   }
 
   .toggle-btn {

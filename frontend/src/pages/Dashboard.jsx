@@ -717,7 +717,7 @@ console.log(appointments, masters)
               No data
             </div>
           ) : (
-            <div style={{ position: "relative", marginTop: 18 }}>
+            <div className="revenue-chart-wrapper" style={{ position: "relative", marginTop: 18 }}>
               {/* Tooltip */}
               {hoveredPoint && hoverIdx != null && (
                 <div
@@ -734,6 +734,7 @@ console.log(appointments, masters)
                     minWidth: 150,
                     boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
                     pointerEvents: "none",
+                    zIndex: 1,
                   }}
                 >
                   <div style={{ fontSize: 20, fontWeight: 900 }}>
@@ -749,8 +750,7 @@ console.log(appointments, masters)
               <svg
                 viewBox={`0 0 ${chart.w} ${chart.h}`}
                 width="100%"
-                height={chart.h}
-                style={{ display: "block" }}
+                style={{ display: "block", minWidth: 480 }}
                 onMouseLeave={() => setHoverIdx(null)}
               >
                 {/* grid lines */}

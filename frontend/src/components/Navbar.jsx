@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 import logo from "../assets/logo.png";
@@ -27,6 +27,7 @@ function getRoleFromToken(token) {
 
 export default function Navbar({ onCollapsedChange }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [role, setRole] = useState(() => getRoleFromToken(localStorage.getItem("token")));
 
   const navigate = useNavigate();
@@ -35,6 +36,20 @@ export default function Navbar({ onCollapsedChange }) {
   useEffect(() => {
     onCollapsedChange?.(isCollapsed);
   }, [isCollapsed, onCollapsedChange]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileOpen]);
+
+  const closeMobileMenu = useCallback(() => setIsMobileOpen(false), []);
 
   // keep role in sync if token changes (you already dispatch tokenChanged)
   useEffect(() => {
@@ -103,42 +118,61 @@ export default function Navbar({ onCollapsedChange }) {
   }, [isMaster]);
 
   return (
-    <aside className={`navbar-sidebar ${isCollapsed ? "collapsed" : ""}`}>
-      <div className="navbar-logo">
-        <img src={logo} alt="ELSA Beauty" className="logo-image" />
-        <button
-          className="toggle-btn"
-          onClick={() => setIsCollapsed((v) => !v)}
-          title={isCollapsed ? "Expand" : "Collapse"}
-        >
-          <img src={toggleIcon} alt="Toggle" className="toggle-icon" />
-        </button>
-      </div>
-
-      <nav className="navbar-menu">
-        {navSections.map((section) => (
-          <div className="nav-section" key={section.title}>
-            {!isCollapsed && <div className="nav-section-title">{section.title}</div>}
-
-            {section.items.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`nav-item ${isActive(item.path) ? "active" : ""}`}
-                title={isCollapsed ? item.label : ""}
-              >
-                <img src={item.icon} alt={item.label} className="nav-icon" />
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </div>
-        ))}
-      </nav>
-
-      <button className="navbar-logout" onClick={logout} title={isCollapsed ? "Logout" : ""}>
-        <img src={logoutIcon} alt="Logout" className="nav-icon" />
-        <span>Logout</span>
+    <>
+      {/* Hamburger button – visible only on mobile (<768px) */}
+      <button
+        className={`hamburger-btn ${isMobileOpen ? "is-open" : ""}`}
+        onClick={() => setIsMobileOpen((v) => !v)}
+        aria-label={isMobileOpen ? "Close menu" : "Open menu"}
+      >
+        <span />
+        <span />
+        <span />
       </button>
-    </aside>
+
+      {/* Overlay – closes menu on tap outside */}
+      {isMobileOpen && (
+        <div className="navbar-overlay" onClick={closeMobileMenu} aria-hidden="true" />
+      )}
+
+      <aside className={`navbar-sidebar ${isCollapsed ? "collapsed" : ""} ${isMobileOpen ? "mobile-open" : ""}`}>
+        <div className="navbar-logo">
+          <img src={logo} alt="ELSA Beauty" className="logo-image" />
+          <button
+            className="toggle-btn"
+            onClick={() => setIsCollapsed((v) => !v)}
+            title={isCollapsed ? "Expand" : "Collapse"}
+          >
+            <img src={toggleIcon} alt="Toggle" className="toggle-icon" />
+          </button>
+        </div>
+
+        <nav className="navbar-menu">
+          {navSections.map((section) => (
+            <div className="nav-section" key={section.title}>
+              {!isCollapsed && <div className="nav-section-title">{section.title}</div>}
+
+              {section.items.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`nav-item ${isActive(item.path) ? "active" : ""}`}
+                  title={isCollapsed ? item.label : ""}
+                  onClick={closeMobileMenu}
+                >
+                  <img src={item.icon} alt={item.label} className="nav-icon" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <button className="navbar-logout" onClick={logout} title={isCollapsed ? "Logout" : ""}>
+          <img src={logoutIcon} alt="Logout" className="nav-icon" />
+          <span>Logout</span>
+        </button>
+      </aside>
+    </>
   );
 }

@@ -167,8 +167,21 @@ textarea:focus {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
+  /* On mobile the sidebar is an overlay – main takes full width */
+  main.main-with-navbar {
+    margin-left: 0 !important;
+  }
+
   .container {
     padding: 16px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Tablet: sidebar is always 80px collapsed */
+  main.main-with-navbar,
+  main.main-with-navbar.navbar-collapsed {
+    margin-left: 80px;
   }
 }

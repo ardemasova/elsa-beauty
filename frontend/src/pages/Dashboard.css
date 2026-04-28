@@ -387,6 +387,14 @@
   font-weight: 500;
 }
 
+/* Dashboard sections base layout */
+.dashboard-sections {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  padding: 24px 32px 32px;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .topbar-right {
@@ -395,39 +403,183 @@
   }
 }
 
-@media (max-width: 768px) {
+/* ── Tablet (768px – 1023px) ── */
+@media (max-width: 1023px) {
+  .dashboard-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Mobile (≤767px) ── */
+@media (max-width: 767px) {
+  /* Top bar: stack vertically, add left padding for hamburger */
   .dashboard-topbar {
-    padding: 16px;
+    padding: 16px 16px 16px 68px; /* left padding leaves room for hamburger button */
     gap: 12px;
     flex-direction: column;
+    align-items: flex-start;
   }
 
-  .kpi-grid {
-    grid-template-columns: 1fr;
-    padding: 16px;
-  }
-
-  .topbar-right,
-  .topbar-left {
+  .topbar-left,
+  .topbar-center,
+  .topbar-right {
     width: 100%;
   }
 
-  .add-appointment-btn {
-    width: 100%;
-    justify-content: center;
+  .topbar-center {
+    flex: unset;
   }
 
+  .topbar-right {
+    flex: unset;
+    justify-content: flex-start;
+  }
+
+  /* Period selector: full width */
+  .period-selector {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .period-selector button {
+    flex: 1;
+    padding: 10px 8px;
+    min-height: 44px;
+    font-size: 0.9rem;
+  }
+
+  /* Filters: horizontal scroll row */
+  .filters-group {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 4px;
+    width: 100%;
+  }
+
+  .filters-group::-webkit-scrollbar {
+    height: 0;
+  }
+
+  /* Touch-friendly filter toggles */
+  .filter-toggle {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+
+  /* Calendar nav: full width */
   .calendar-nav {
     width: 100%;
     justify-content: space-between;
   }
+
+  /* Touch-friendly nav buttons */
+  .nav-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+
+  .nav-btn.today-btn {
+    width: auto;
+    min-height: 44px;
+    padding: 0 16px;
+  }
+
+  .date-range {
+    font-size: 0.9rem;
+  }
+
+  /* Add appointment button: full width */
+  .add-appointment-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  /* KPI grid: 1 column on very small, 2 columns on 375px+ */
+  .kpi-grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .stats-value {
+    font-size: 1.6rem;
+  }
+
+  .stats-title {
+    font-size: 1rem;
+  }
+
+  .stats-subtitle {
+    font-size: 0.9rem;
+  }
+
+  /* Dashboard sections */
+  .dashboard-sections {
+    padding: 16px;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+
+  /* Revenue chart: horizontal scroll on mobile */
+  .revenue-chart-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+
+  .revenue-section svg {
+    min-width: 480px;
+  }
+
+  /* Upcoming list */
+  .upcoming-item {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .upcoming-status {
+    align-self: flex-start;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
 }
 
-.dashboard-sections {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-  padding: 24px 32px 32px;
+/* ── 375px+: 2-column KPI grid ── */
+@media (min-width: 375px) and (max-width: 767px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Desktop (1024px+): 4-column KPI grid ── */
+@media (min-width: 1024px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ── Tablet (768px – 1023px) ── */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-sections {
+    padding: 16px;
+  }
+
+  .dashboard-topbar {
+    padding: 16px 20px;
+  }
 }
 
 .dashboard-section {
@@ -553,18 +705,7 @@
   text-transform: capitalize;
 }
 
-@media (max-width: 1024px) {
-  .dashboard-sections {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 768px) {
-  .dashboard-sections {
-    padding: 16px;
-    gap: 16px;
-  }
-
   .revenue-chart {
     height: 200px;
   }
