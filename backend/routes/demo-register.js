@@ -82,7 +82,7 @@ router.post('/', async (req, res) => {
     // Создаём пользователя в БД
     const { rows } = await db.query(
       `INSERT INTO public.users (email, name, phone, password_hash, tenant_id, role, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'user', NOW())
+       VALUES ($1, $2, $3, $4, $5, 'admin', NOW())
        RETURNING id, email, name, phone`,
       [email.toLowerCase(), name.trim(), phone || null, hashedPassword, demoTenantId]
     );
