@@ -524,7 +524,6 @@
   .dashboard-sections {
     padding: 16px;
     gap: 16px;
-    grid-template-columns: 1fr;
   }
 
   /* Revenue chart: horizontal scroll on mobile */
@@ -533,10 +532,6 @@
     -webkit-overflow-scrolling: touch;
     margin: 0 -4px;
     padding: 0 4px;
-  }
-
-  .revenue-section svg {
-    min-width: 480px;
   }
 
   /* Upcoming list */
@@ -705,7 +700,7 @@
   text-transform: capitalize;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .revenue-chart {
     height: 200px;
   }
