@@ -26,6 +26,14 @@ require("dotenv").config();
 
 const app = express();
 
+app.get("/__debug/routes", (req, res) => {
+  res.json({
+    ok: true,
+    hasVatMount: true,
+    time: new Date().toISOString(),
+  });
+});
+
 /**
  * ✅ Uploads folder (served as static files)
  * URL:  http://localhost:3000/uploads/masters/<file>.png
