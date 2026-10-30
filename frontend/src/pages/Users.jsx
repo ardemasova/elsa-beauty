@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { fetchUsers, createUser, updateUser, deleteUser } from "../api/api";
 import { fetchTenants } from "../api/tenantsApi";
+import { getTokenPayload } from "../auth/session";
 import * as XLSX from "xlsx";
 import "./Appointments.css";
 import "./Users.css";
 
 export default function Users() {
   const token = localStorage.getItem("token");
+  const me = getTokenPayload(token);
+  const isOwner = me?.accountRole === "owner";
+  const myId = me?.sub;
 
   const [users, setUsers] = useState([]);
   const [tenants, setTenants] = useState([]);
@@ -129,6 +133,7 @@ export default function Users() {
         <h2 className="users-title">Users</h2>
 
         <div className="users-header-controls">
+          {isOwner && (
           <select
             className="users-branch-filter"
             value={selectedTenantId}
@@ -142,6 +147,7 @@ export default function Users() {
               </option>
             ))}
           </select>
+          )}
 
           <button className="add-appointment-btn" onClick={() => setShowCreateModal(true)}>
             + New User
@@ -178,8 +184,8 @@ export default function Users() {
                         borderRadius: "999px",
                         fontSize: "12px",
                         fontWeight: 800,
-                        backgroundColor: u.role === "admin" ? "#fecaca" : "#dbeafe",
-                        color: u.role === "admin" ? "#991b1b" : "#1e40af",
+                        backgroundColor: u.role === "owner" ? "#ede9fe" : u.role === "admin" ? "#fecaca" : "#dbeafe",
+                        color: u.role === "owner" ? "#5b21b6" : u.role === "admin" ? "#991b1b" : "#1e40af",
                         textTransform: "capitalize",
                       }}
                     >
@@ -188,21 +194,25 @@ export default function Users() {
                   </td>
 
                   <td className="users-branch">
-                    {u.tenant_name || tenantMap.get(u.tenant_id)?.name || "-"}
+                    {u.role === "owner" ? "All branches" : u.tenant_name || tenantMap.get(u.tenant_id)?.name || "-"}
                   </td>
 
                   <td className="actions">
-                    <button type="button" className="secondary" onClick={() => setEditingUser(u)} disabled={loading}>
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() => setDeleteConfirmId(u.id)}
-                      disabled={loading}
-                    >
-                      Delete
-                    </button>
+                    {(u.id === myId || (u.role !== "owner" && (isOwner || u.role === "master"))) && (
+                      <button type="button" className="secondary" onClick={() => setEditingUser(u)} disabled={loading}>
+                        Edit
+                      </button>
+                    )}
+                    {u.id !== myId && u.role !== "owner" && (isOwner || u.role === "master") && (
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => setDeleteConfirmId(u.id)}
+                        disabled={loading}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -223,7 +233,8 @@ export default function Users() {
           title="New User"
           loading={loading}
           tenants={tenants}
-          initialValues={{ email: "", password: "", role: "master", tenant_id: selectedTenantId || "" }}
+          isOwner={isOwner}
+          initialValues={{ email: "", password: "", role: "master", tenant_ids: selectedTenantId ? [selectedTenantId] : tenants.length === 1 ? [tenants[0].id] : [] }}
           onClose={() => setShowCreateModal(false)}
           onSubmit={(values) => handleCreate(values)}
           submitLabel="Create"
@@ -237,19 +248,18 @@ export default function Users() {
           title="Edit User"
           loading={loading}
           tenants={tenants}
+          isOwner={isOwner}
+          isSelf={editingUser.id === myId}
           initialValues={{
             email: editingUser.email || "",
             password: "",
             role: editingUser.role || "master",
-            tenant_id: editingUser.tenant_id || "",
+            tenant_ids: editingUser.tenant_ids || [],
           }}
           onClose={() => setEditingUser(null)}
           onSubmit={(values) => {
-            const updateData = {
-              email: values.email,
-              role: values.role,
-              tenant_id: values.tenant_id || null,
-            };
+            const updateData = { email: values.email, role: values.role };
+            if (isOwner && editingUser.id !== myId) updateData.tenant_ids = values.tenant_ids;
             if (values.password) updateData.password = values.password; // optional
             return handleUpdate(editingUser.id, updateData);
           }}
@@ -279,27 +289,29 @@ export default function Users() {
   );
 }
 
-function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLabel, passwordHelp, tenants }) {
+function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLabel, passwordHelp, tenants, isOwner, isSelf = false }) {
   const [email, setEmail] = useState(initialValues.email);
   const [password, setPassword] = useState(initialValues.password);
   const [role, setRole] = useState(initialValues.role);
-  const [tenantId, setTenantId] = useState(initialValues.tenant_id);
+  const [tenantIds, setTenantIds] = useState(initialValues.tenant_ids || []);
+  const [formError, setFormError] = useState("");
+  const isEdit = title.startsWith("Edit");
 
-  useEffect(() => {
-    setEmail(initialValues.email);
-    setPassword(initialValues.password);
-    setRole(initialValues.role);
-    setTenantId(initialValues.tenant_id);
-  }, [initialValues]);
+  // The modal is mounted fresh each time it opens, so initial state is enough
+  // (re-syncing on every render used to wipe what the user was typing).
+  // Owners assign branches; admins always add staff to their current branch.
+  const showBranches = isOwner && !isSelf && role !== "owner";
+  const canChooseRole = isOwner && !isSelf && role !== "owner";
+
+  const toggleTenant = (id) =>
+    setTenantIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({
-      email,
-      password,
-      role,
-      tenant_id: tenantId || null,
-    });
+    if (password && password.length < 8) return setFormError("Password must be at least 8 characters");
+    if (showBranches && tenantIds.length === 0) return setFormError("Choose at least one branch");
+    setFormError("");
+    onSubmit({ email, password, role, tenant_ids: tenantIds });
   };
 
   return (
@@ -308,6 +320,8 @@ function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLab
         <h3>{title}</h3>
 
         <form onSubmit={handleSubmit}>
+          {formError && <p className="appointments-error-message">{formError}</p>}
+
           <div className="form-group">
             <label>Email *</label>
             <input
@@ -321,14 +335,16 @@ function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLab
           </div>
 
           <div className="form-group">
-            <label>Password {title.startsWith("Edit") ? "" : "*"}</label>
+            <label>Password {isEdit ? "" : "*"}</label>
             <input
               type="password"
-              placeholder={passwordHelp ? `Password (${passwordHelp})` : "Password"}
+              placeholder={passwordHelp ? `Password (${passwordHelp})` : "At least 8 characters"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required={!title.startsWith("Edit")}
+              required={!isEdit}
+              minLength={isEdit && !password ? undefined : 8}
               disabled={loading}
+              autoComplete="new-password"
             />
             {passwordHelp ? (
               <small className="muted" style={{ marginTop: "4px", display: "block" }}>
@@ -337,27 +353,40 @@ function UserModal({ title, initialValues, loading, onClose, onSubmit, submitLab
             ) : null}
           </div>
 
-          <div className="form-group">
-            <label>Role *</label>
-            <select value={role} onChange={(e) => setRole(e.target.value)} required disabled={loading}>
-              <option value="master">Master</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
+          {canChooseRole ? (
+            <div className="form-group">
+              <label>Role *</label>
+              <select value={role} onChange={(e) => setRole(e.target.value)} required disabled={loading}>
+                <option value="master">Master</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          ) : (
+            <div className="form-group">
+              <label>Role</label>
+              <input value={role.charAt(0).toUpperCase() + role.slice(1)} disabled readOnly />
+            </div>
+          )}
 
-          <div className="form-group">
-            <label>Branch *</label>
-            <select value={tenantId || ""} onChange={(e) => setTenantId(e.target.value)} required disabled={loading}>
-              <option value="" disabled>
-                Select branch...
-              </option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} {t.is_active ? "" : "(inactive)"}
-                </option>
-              ))}
-            </select>
-          </div>
+          {showBranches && (
+            <div className="form-group">
+              <label>Branches *</label>
+              <div style={{ display: "grid", gap: 6 }}>
+                {tenants.map((t) => (
+                  <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      checked={tenantIds.includes(t.id)}
+                      onChange={() => toggleTenant(t.id)}
+                      disabled={loading}
+                      style={{ width: "auto" }}
+                    />
+                    {t.name} {t.is_active ? "" : "(inactive)"}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="modal-actions">
             <button type="submit" disabled={loading}>

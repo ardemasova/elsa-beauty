@@ -88,7 +88,7 @@ function App() {
           <Route
             path="/masters"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <Masters />
               </ProtectedRoute>
             }
@@ -106,7 +106,7 @@ function App() {
           <Route
             path="/users"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <Users />
               </ProtectedRoute>
             }
@@ -133,7 +133,7 @@ function App() {
           <Route
             path="/ai-assistant"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <AiAssistant />
               </ProtectedRoute>
             }
@@ -142,13 +142,14 @@ function App() {
           <Route
             path="/settings"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <Settings />
               </ProtectedRoute>
             }
           />
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to={isAuth ? "/dashboard" : "/login"} replace />} />
+          <Route path="*" element={<Navigate to={isAuth ? "/dashboard" : "/login"} replace />} />
         </Routes>
       </main>
     </Router>
