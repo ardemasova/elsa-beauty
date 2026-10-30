@@ -1,26 +1,35 @@
 const nodemailer = require('nodemailer');
 
 // Namecheap Private Email SMTP конфигурация
-const transporter = nodemailer.createTransport({
+const transporter = process.env.MAIL_TRANSPORT === 'json'
+  ? nodemailer.createTransport({ jsonTransport: true }) // tests / local dev: nothing is sent
+  : nodemailer.createTransport({
   host: process.env.MAIL_HOST || 'mail.privateemail.com',
-  port: parseInt(process.env.MAIL_PORT) || 587,
-  secure: false, // TLS, не SSL
+  port: parseInt(process.env.MAIL_PORT, 10) || 587,
+  secure: false, // STARTTLS
   auth: {
-    user: process.env.MAIL_USER,     // твой email от Namecheap
-    pass: process.env.MAIL_PASS,     // пароль от Namecheap
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
   },
-  logger: true,
-  debug: true,
+  // SMTP debug logs print message contents (including passwords) - only on request.
+  logger: process.env.MAIL_DEBUG === 'true',
+  debug: process.env.MAIL_DEBUG === 'true',
 });
 
-// Проверяем подключение при старте
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Email service error:', error);
-  } else {
-    console.log('✅ Email service ready');
-  }
-});
+if (process.env.MAIL_TRANSPORT === 'json') {
+  // no-op
+} else if (process.env.MAIL_USER && process.env.MAIL_PASS) {
+  transporter.verify((error) => {
+    if (error) console.error('❌ Email service error:', error.message);
+    else console.log('✅ Email service ready');
+  });
+} else {
+  console.warn('⚠️  MAIL_USER / MAIL_PASS not set: demo sign-up emails will not be sent');
+}
+
+function escapeHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // Функция отправки письма с доступом к демо
 async function sendDemoAccessEmail(user, tempPassword) {
@@ -62,18 +71,18 @@ async function sendDemoAccessEmail(user, tempPassword) {
         </div>
         
         <div class="content">
-          <p>Hi <strong>${user.name}</strong>,</p>
+          <p>Hi <strong>${escapeHtml(user.name)}</strong>,</p>
           
           <p>Thank you for registering! Your <strong>free 2-week demo access</strong> to ELSA Beauty ERP is now active.</p>
           
           <div class="card">
             <div class="label">📧 Login Email</div>
-            <div class="value">${user.email}</div>
+            <div class="value">${escapeHtml(user.email)}</div>
           </div>
           
           <div class="card">
             <div class="label">🔑 Password</div>
-            <div class="value">${tempPassword}</div>
+            <div class="value">${escapeHtml(tempPassword)}</div>
           </div>
           
           <div class="btn-container">
@@ -123,7 +132,7 @@ async function sendDemoAccessEmail(user, tempPassword) {
     console.log(`✅ Demo email sent to ${user.email}`);
     return true;
   } catch (err) {
-    console.error('❌ Email send error:', err);
+    console.error('❌ Email send error:', err.message);
     throw err;
   }
 }

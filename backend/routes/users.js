@@ -1,200 +1,211 @@
+/**
+ * Staff logins of an account.
+ *   owner  - sees and manages every user of the account (admins and masters,
+ *            in any of the account's branches)
+ *   admin  - sees users of the current branch, can add/edit/remove masters there
+ *   master - no access
+ */
 const express = require("express");
-const bcryptjs = require("bcryptjs");
+const bcrypt = require("bcryptjs");
 const db = require("../db");
-const { authenticateToken } = require("../middleware/auth");
-const { tenantContext } = require("../middleware/tenantContext");
+const { authenticate } = require("../middleware/auth");
+const { assertUserLimit } = require("../services/provisioning");
 
 const router = express.Router();
+const MIN_PASSWORD = 8;
 
-function requireAdmin(req, res) {
-  if (req.user.role !== "admin") {
-    res.status(403).json({ message: "Forbidden" });
-    return false;
-  }
-  return true;
+router.use(authenticate(), (req, res, next) => {
+  if (req.user.isOwner) return next();
+  if (req.user.role === "admin" && req.tenant) return next();
+  return res.status(403).json({ message: "Forbidden" });
+});
+
+const SELECT_USERS = `
+  SELECT u.id, u.email, u.name, u.phone, u.role, u.is_active, u.created_at,
+         COALESCE(array_agg(t.id ORDER BY t.created_at) FILTER (WHERE t.id IS NOT NULL), '{}') AS tenant_ids,
+         COALESCE(array_agg(t.name ORDER BY t.created_at) FILTER (WHERE t.id IS NOT NULL), '{}') AS tenant_names
+    FROM public.users u
+    LEFT JOIN public.user_tenants ut ON ut.user_id = u.id
+    LEFT JOIN public.tenants t ON t.id = ut.tenant_id`;
+
+function shape(row) {
+  return {
+    ...row,
+    // kept for the existing UI, which shows one branch per user
+    tenant_id: row.tenant_ids[0] || null,
+    tenant_name: row.tenant_names.join(", ") || null,
+  };
 }
 
-// GET users (admin only) + optional filter
-router.get("/", authenticateToken, tenantContext, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+/** Returns the user if the caller may manage them, otherwise null. */
+async function findInScope(req, userId) {
+  const params = [req.user.accountId, userId];
+  let extra = "";
+  if (!req.user.isOwner) {
+    params.push(req.tenant.id);
+    extra = `AND EXISTS (SELECT 1 FROM public.user_tenants x WHERE x.user_id = u.id AND x.tenant_id = $3)`;
+  }
+  const { rows } = await db.query(
+    `${SELECT_USERS} WHERE u.account_id = $1 AND u.id = $2 ${extra} GROUP BY u.id`,
+    params
+  );
+  return rows[0] ? shape(rows[0]) : null;
+}
 
-  const { tenant_id } = req.query;
+/** Validates the requested branch list against what the caller may assign. */
+async function resolveTenantIds(req, body) {
+  if (!req.user.isOwner) return [req.tenant.id]; // admins only add staff to their current branch
 
+  let ids = Array.isArray(body.tenant_ids) ? body.tenant_ids : body.tenant_id ? [body.tenant_id] : [];
+  ids = [...new Set(ids.filter(Boolean))];
+  if (!ids.length) return null;
+
+  const { rows } = await db.query(
+    `SELECT id FROM public.tenants WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+    [req.user.accountId, ids]
+  );
+  return rows.length === ids.length ? ids : null;
+}
+
+function allowedRoles(req) {
+  return req.user.isOwner ? ["admin", "master"] : ["master"];
+}
+
+// GET /api/users[?tenant_id=]
+router.get("/", async (req, res, next) => {
   try {
-    const params = [];
-    let where = "";
-
-    if (tenant_id) {
-      params.push(tenant_id);
-      where = `WHERE u.tenant_id = $${params.length}`;
+    const params = [req.user.accountId];
+    let where = "WHERE u.account_id = $1";
+    const filterTenant = req.user.isOwner ? req.query.tenant_id : req.tenant.id;
+    if (filterTenant) {
+      params.push(filterTenant);
+      where += ` AND EXISTS (SELECT 1 FROM public.user_tenants x WHERE x.user_id = u.id AND x.tenant_id = $2)`;
     }
-
-    const { rows } = await db.query(
-      `
-      SELECT
-        u.id,
-        u.email,
-        u.role,
-        u.tenant_id,
-        u.created_at,
-        t.name AS tenant_name,
-        t.schema_name AS tenant_schema_name
-      FROM public.users u
-      LEFT JOIN public.tenants t ON t.id = u.tenant_id
-      ${where}
-      ORDER BY u.created_at DESC
-      `,
-      params
-    );
-
-    res.json(rows);
+    const { rows } = await db.query(`${SELECT_USERS} ${where} GROUP BY u.id ORDER BY u.created_at DESC`, params);
+    res.json(rows.map(shape));
   } catch (err) {
-    console.error("FETCH USERS ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    next(err);
   }
 });
 
-// GET single user by id (admin only)
-router.get("/:id", authenticateToken, tenantContext, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const { id } = req.params;
-
+// GET /api/users/:id
+router.get("/:id", async (req, res, next) => {
   try {
-    const { rows } = await db.query(
-      `SELECT id, email, role, tenant_id, created_at FROM public.users WHERE id = $1`,
-      [id]
-    );
-
-    if (rows.length === 0) return res.status(404).json({ message: "User not found" });
-    res.json(rows[0]);
+    const user = await findInScope(req, req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
   } catch (err) {
-    console.error("FETCH USER ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    next(err);
   }
 });
 
-// POST create user (admin only)
-router.post("/", authenticateToken, tenantContext, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+// POST /api/users  { email, password, role, tenant_id | tenant_ids, name?, phone? }
+router.post("/", async (req, res, next) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  const role = req.body?.role;
 
-  const { email, password, role, tenant_id } = req.body;
-  if (!email || !password || !role) return res.status(400).json({ message: "email/password/role required" });
-
-  // IMPORTANT: allow choosing branch; fallback to current admin tenant
-  const finalTenantId = tenant_id || req.user.tenantId;
-  if (!finalTenantId) return res.status(400).json({ message: "tenant_id is required" });
-
-  try {
-    // ✅ FIX: uniqueness per tenant
-    const exists = await db.query(
-      "SELECT id FROM public.users WHERE tenant_id = $1 AND email = $2",
-      [finalTenantId, email]
-    );
-    if (exists.rows.length > 0) return res.status(409).json({ message: "User already exists" });
-
-    const hash = await bcryptjs.hash(password, 10);
-
-    const { rows } = await db.query(
-      `INSERT INTO public.users (email, password_hash, role, tenant_id)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, email, role, tenant_id, created_at`,
-      [email, hash, role, finalTenantId]
-    );
-
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error("CREATE USER ERROR:", err);
-
-    // If DB has unique(tenant_id,email), surface friendly 409
-    if (err.code === "23505") return res.status(409).json({ message: "User already exists" });
-
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-// PUT update user (admin only)
-router.put("/:id", authenticateToken, tenantContext, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const { id } = req.params;
-  const { email, password, role, tenant_id } = req.body;
-
-  if (!email || !role) return res.status(400).json({ message: "email and role required" });
+  if (!email || !password || !role) return res.status(400).json({ message: "Email, password and role are required" });
+  if (password.length < MIN_PASSWORD) return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
+  if (!allowedRoles(req).includes(role)) return res.status(403).json({ message: `You cannot create users with role "${role}"` });
 
   try {
-    const checkUser = await db.query(
-      "SELECT id, email, tenant_id FROM public.users WHERE id = $1",
-      [id]
-    );
+    const tenantIds = await resolveTenantIds(req, req.body);
+    if (!tenantIds) return res.status(400).json({ message: "Choose at least one valid branch" });
 
-    if (checkUser.rows.length === 0) return res.status(404).json({ message: "User not found" });
+    await assertUserLimit(db, req.user.accountId);
+    const hash = await bcrypt.hash(password, 12);
 
-    const current = checkUser.rows[0];
-    const nextTenantId = tenant_id || current.tenant_id;
-
-    // ✅ FIX: check uniqueness per (tenant_id, email), excluding current user
-    if (current.email !== email || current.tenant_id !== nextTenantId) {
-      const emailExists = await db.query(
-        "SELECT id FROM public.users WHERE tenant_id = $1 AND email = $2 AND id <> $3",
-        [nextTenantId, email, id]
+    const id = await db.withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `INSERT INTO public.users (email, password_hash, role, account_id, tenant_id, name, phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [email, hash, role, req.user.accountId, tenantIds[0], req.body.name || null, req.body.phone || null]
       );
-      if (emailExists.rows.length > 0) return res.status(409).json({ message: "Email already in use" });
-    }
+      for (const tid of tenantIds) {
+        await client.query(`INSERT INTO public.user_tenants (user_id, tenant_id) VALUES ($1, $2)`, [rows[0].id, tid]);
+      }
+      return rows[0].id;
+    });
 
-    let updateQuery;
-    let updateParams;
-
-    if (password) {
-      const hash = await bcryptjs.hash(password, 10);
-      updateQuery = `
-        UPDATE public.users
-        SET email = $1,
-            password_hash = $2,
-            role = $3,
-            tenant_id = $4
-        WHERE id = $5
-        RETURNING id, email, role, tenant_id, created_at
-      `;
-      updateParams = [email, hash, role, nextTenantId, id];
-    } else {
-      updateQuery = `
-        UPDATE public.users
-        SET email = $1,
-            role = $2,
-            tenant_id = $3
-        WHERE id = $4
-        RETURNING id, email, role, tenant_id, created_at
-      `;
-      updateParams = [email, role, nextTenantId, id];
-    }
-
-    const { rows } = await db.query(updateQuery, updateParams);
-    res.json(rows[0]);
+    res.status(201).json(await findInScope(req, id));
   } catch (err) {
-    console.error("UPDATE USER ERROR:", err);
-    if (err.code === "23505") return res.status(409).json({ message: "Email already in use" });
-    res.status(500).json({ message: "Server error" });
+    if (err.code === "23505") return res.status(409).json({ message: "A user with this email already exists" });
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    next(err);
   }
 });
 
-// DELETE user (admin only)
-router.delete("/:id", authenticateToken, tenantContext, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const { id } = req.params;
-
+// PUT /api/users/:id  { email, password?, role, tenant_id | tenant_ids, is_active?, name?, phone? }
+router.put("/:id", async (req, res, next) => {
   try {
-    const checkUser = await db.query("SELECT id FROM public.users WHERE id = $1", [id]);
-    if (checkUser.rows.length === 0) return res.status(404).json({ message: "User not found" });
+    const target = await findInScope(req, req.params.id);
+    if (!target) return res.status(404).json({ message: "User not found" });
 
-    if (req.user.id === id) return res.status(400).json({ message: "You cannot delete yourself" });
+    const isSelf = target.id === req.user.id;
+    if (target.role === "owner" && !isSelf) return res.status(403).json({ message: "Forbidden" });
+    if (!req.user.isOwner && target.role !== "master" && !isSelf) {
+      return res.status(403).json({ message: "Admins can only edit masters" });
+    }
 
-    await db.query("DELETE FROM public.users WHERE id = $1", [id]);
+    const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : target.email;
+    const role = req.body?.role || target.role;
+    if (isSelf && role !== target.role) return res.status(400).json({ message: "You cannot change your own role" });
+    if (!isSelf && !allowedRoles(req).includes(role)) return res.status(403).json({ message: `You cannot assign role "${role}"` });
+
+    const isActive = typeof req.body?.is_active === "boolean" ? req.body.is_active : target.is_active;
+    if (isSelf && !isActive) return res.status(400).json({ message: "You cannot deactivate yourself" });
+
+    let tenantIds = null;
+    if (req.user.isOwner && !isSelf && (req.body?.tenant_ids || req.body?.tenant_id)) {
+      tenantIds = await resolveTenantIds(req, req.body);
+      if (!tenantIds) return res.status(400).json({ message: "Choose at least one valid branch" });
+    }
+
+    const password = req.body?.password ? String(req.body.password) : null;
+    if (password && password.length < MIN_PASSWORD) {
+      return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
+    }
+    const hash = password ? await bcrypt.hash(password, 12) : null;
+
+    await db.withTransaction(async (client) => {
+      await client.query(
+        `UPDATE public.users
+            SET email = $1, role = $2, is_active = $3,
+                name = COALESCE($4, name), phone = COALESCE($5, phone),
+                password_hash = COALESCE($6, password_hash)
+          WHERE id = $7`,
+        [email, role, isActive, req.body?.name ?? null, req.body?.phone ?? null, hash, target.id]
+      );
+      if (tenantIds) {
+        await client.query(`DELETE FROM public.user_tenants WHERE user_id = $1`, [target.id]);
+        for (const tid of tenantIds) {
+          await client.query(`INSERT INTO public.user_tenants (user_id, tenant_id) VALUES ($1, $2)`, [target.id, tid]);
+        }
+        await client.query(`UPDATE public.users SET tenant_id = $1 WHERE id = $2`, [tenantIds[0], target.id]);
+      }
+    });
+
+    res.json(await findInScope(req, target.id));
+  } catch (err) {
+    if (err.code === "23505") return res.status(409).json({ message: "A user with this email already exists" });
+    next(err);
+  }
+});
+
+// DELETE /api/users/:id
+router.delete("/:id", async (req, res, next) => {
+  try {
+    const target = await findInScope(req, req.params.id);
+    if (!target) return res.status(404).json({ message: "User not found" });
+    if (target.id === req.user.id) return res.status(400).json({ message: "You cannot delete yourself" });
+    if (target.role === "owner") return res.status(403).json({ message: "The account owner cannot be deleted" });
+    if (!req.user.isOwner && target.role !== "master") return res.status(403).json({ message: "Admins can only remove masters" });
+
+    await db.query(`DELETE FROM public.users WHERE id = $1 AND account_id = $2`, [target.id, req.user.accountId]);
     res.json({ message: "User deleted successfully" });
   } catch (err) {
-    console.error("DELETE USER ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    next(err);
   }
 });
 

@@ -1,6 +1,6 @@
 const express = require("express");
 const db = require("../db");
-const { authenticateToken } = require("../middleware/auth");
+const { authenticateToken, requireAdmin } = require("../middleware/auth");
 const reportsService = require("../services/reports/reports.service");
 const {
   generateReportSummary,
@@ -16,9 +16,12 @@ const router = express.Router();
 // =======================
 // POST Admin Chat
 // =======================
-router.post("/admin-chat", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.post("/admin-chat", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { question, from, to } = req.body;
 
+  if (typeof question === "string" && question.length > 1000) {
+    return res.status(400).json({ message: "Question is too long (max 1000 characters)" });
+  }
   if (!question || !from || !to) {
     return res.status(400).json({
       message: "question, from and to dates required",
@@ -50,14 +53,14 @@ User Question: ${question}`;
     res.json({ answer });
   } catch (err) {
     console.error("ADMIN CHAT ERROR:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // POST Schedule Insights
 // =======================
-router.post("/schedule-insights", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.post("/schedule-insights", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.body;
 
   if (!from || !to) {
@@ -76,14 +79,14 @@ router.post("/schedule-insights", authenticateToken, requireFeature('basic_repor
     res.json(insights);
   } catch (err) {
     console.error("SCHEDULE INSIGHTS ERROR:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // POST AI report summary
 // =======================
-router.post("/ai-summary", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.post("/ai-summary", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.body;
 
   if (!from || !to) {
@@ -102,14 +105,14 @@ router.post("/ai-summary", authenticateToken, requireFeature('basic_reports'), a
     res.json(summary);
   } catch (err) {
     console.error("AI SUMMARY ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET summary all
 // =======================
-router.get("/summary-all", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/summary-all", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -131,7 +134,7 @@ router.get("/summary-all", authenticateToken, requireFeature('basic_reports'), a
 // =======================
 // GET summary statistics
 // =======================
-router.get("/summary", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/summary", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -153,7 +156,7 @@ router.get("/summary", authenticateToken, requireFeature('basic_reports'), async
 // =======================
 // GET cancelled appointments
 // =======================
-router.get("/cancelled", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/cancelled", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -175,7 +178,7 @@ router.get("/cancelled", authenticateToken, requireFeature('basic_reports'), asy
 // =======================
 // GET average check
 // =======================
-router.get("/average-check", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/average-check", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -198,10 +201,17 @@ router.get("/average-check", authenticateToken, requireFeature('basic_reports'),
 // GET master performance
 // =======================
 router.get("/master-performance", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
-  const { startDate, endDate, masterId } = req.query;
+  let { masterId } = req.query;
 
   try {
     const schema = await resolveTenantSchema(req);
+
+    // Masters only ever see their own figures.
+    if (req.user.role !== "admin") {
+      const own = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [req.user.id]);
+      if (!own.rows.length) return res.json([]);
+      masterId = own.rows[0].id;
+    }
 
     let query = `
       SELECT 
@@ -227,7 +237,7 @@ router.get("/master-performance", authenticateToken, requireFeature('basic_repor
     const params = [];
 
     if (masterId) {
-      query += ` AND master_id = $${params.length + 1}`;
+      query += ` AND mp.master_id = $${params.length + 1}`;
       params.push(masterId);
     }
 
@@ -237,14 +247,14 @@ router.get("/master-performance", authenticateToken, requireFeature('basic_repor
     res.json(rows);
   } catch (err) {
     console.error("MASTER PERFORMANCE ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET revenue by day
 // =======================
-router.get("/revenue-by-day", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/revenue-by-day", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -271,14 +281,14 @@ router.get("/revenue-by-day", authenticateToken, requireFeature('basic_reports')
     res.json(rows);
   } catch (err) {
     console.error("GET REVENUE BY DAY ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET revenue by master
 // =======================
-router.get("/revenue-by-master", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/revenue-by-master", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -311,14 +321,14 @@ router.get("/revenue-by-master", authenticateToken, requireFeature('basic_report
     res.json(rows);
   } catch (err) {
     console.error("GET REVENUE BY MASTER ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET revenue by service
 // =======================
-router.get("/revenue-by-service", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/revenue-by-service", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -350,14 +360,14 @@ router.get("/revenue-by-service", authenticateToken, requireFeature('basic_repor
     res.json(rows);
   } catch (err) {
     console.error("GET REVENUE BY SERVICE ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET COGS Report
 // =======================
-router.get("/cogs-report", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/cogs-report", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to, groupBy } = req.query;
 
   if (!from || !to) {
@@ -402,14 +412,14 @@ router.get("/cogs-report", authenticateToken, requireFeature('basic_reports'), a
     res.json(rows);
   } catch (err) {
     console.error("GET COGS REPORT ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // GET COGS Summary
 // =======================
-router.get("/cogs-summary", authenticateToken, requireFeature('basic_reports'), async (req, res) => {
+router.get("/cogs-summary", authenticateToken, requireFeature('basic_reports'), requireAdmin, async (req, res) => {
   const { from, to } = req.query;
 
   if (!from || !to) {
@@ -439,7 +449,7 @@ router.get("/cogs-summary", authenticateToken, requireFeature('basic_reports'), 
     res.json(rows[0] || {});
   } catch (err) {
     console.error("GET COGS SUMMARY ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 

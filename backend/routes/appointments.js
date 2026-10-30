@@ -57,6 +57,17 @@ router.get("/", authenticateToken, requireFeature('appointments'), async (req, r
     query += ` ORDER BY a.start_time DESC`;
 
     const { rows } = await db.query(query, params);
+
+    // Masters see the whole calendar (to know when colleagues are busy), but
+    // client details only for their own appointments.
+    if (role === "master") {
+      const me = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [req.user.id]);
+      const myId = me.rows[0]?.id;
+      return res.json(
+        rows.map((r) => (r.master_id === myId ? r : { ...r, client_id: null, client_name: null }))
+      );
+    }
+
     res.json(rows);
   } catch (err) {
     console.error("FETCH APPOINTMENTS ERROR:", err);
@@ -244,6 +255,9 @@ router.post("/", authenticateToken, requireFeature('appointments'), async (req, 
 
     res.status(201).json(rows[0]);
   } catch (err) {
+    if (err.code === "23P01") {
+      return res.status(409).json({ message: "This master already has an appointment at that time" });
+    }
     console.error("CREATE APPOINTMENT ERROR:", err);
     console.error("Error message:", err.message);
     console.error("Error code:", err.code);
@@ -253,7 +267,7 @@ router.post("/", authenticateToken, requireFeature('appointments'), async (req, 
       return res.status(409).json({ message: "Appointment overlaps existing booking" });
     }
 
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -291,6 +305,9 @@ router.put("/:id", authenticateToken, requireFeature('appointments'), async (req
 
       if (checkAppointment.rows[0].master_id !== masterResult.rows[0].id) {
         return res.status(403).json({ message: "Can only edit your own appointments" });
+      }
+      if (master_id !== masterResult.rows[0].id) {
+        return res.status(403).json({ message: "Masters cannot reassign appointments to someone else" });
       }
     }
 
@@ -361,6 +378,9 @@ router.put("/:id", authenticateToken, requireFeature('appointments'), async (req
 
     res.json(rows[0]);
   } catch (err) {
+    if (err.code === "23P01") {
+      return res.status(409).json({ message: "This master already has an appointment at that time" });
+    }
     console.error("UPDATE APPOINTMENT ERROR:", err);
 
     if (err.constraint === "appointments_no_overlap") {

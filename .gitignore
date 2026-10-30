@@ -25,3 +25,9 @@ frontend/build/
 elsa_local.dump
 *.dump
 *.sql
+
+# user uploads (personal data) - never commit
+backend/uploads/
+
+# local test env
+backend/.env.test

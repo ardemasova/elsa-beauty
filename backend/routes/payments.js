@@ -113,7 +113,8 @@ router.get("/:id", authenticateToken, requireFeature('payments'), async (req, re
       return res.status(404).json({ message: "Payment not found" });
     }
 
-    // Master restriction (only own appointments)
+    // Master restriction: only payments of their own appointments
+    if (role === "master" && !rows[0].appointment_id) return res.status(403).json({ message: "Forbidden" });
     if (role === "master" && rows[0].appointment_id) {
       const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
       if (masterResult.rows.length === 0) return res.status(403).json({ message: "Master profile not found" });
@@ -164,6 +165,9 @@ router.post("/", authenticateToken, requireFeature('payments'), async (req, res)
     return res.status(400).json({
       message: "Select exactly one: appointment_id, item_id, or expense_id",
     });
+  }
+  if (role === "master" && !hasAppointment) {
+    return res.status(403).json({ message: "Masters can only register payments for their appointments" });
   }
   // qty: appointment = 1, item/expense >= 1
   const finalQty = hasAppointment ? 1 : Number(qty ?? 1);
@@ -239,7 +243,7 @@ router.post("/", authenticateToken, requireFeature('payments'), async (req, res)
     if (err.code === "23505") {
       return res.status(409).json({ message: "Payment for this combination already exists" });
     }
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -301,8 +305,12 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
     if (role === "master") {
       const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
       if (masterResult.rows.length === 0) return res.status(403).json({ message: "Master profile not found" });
-      if (checkPayment.rows[0].master_id && checkPayment.rows[0].master_id !== masterResult.rows[0].id)
+      if (checkPayment.rows[0].master_id !== masterResult.rows[0].id)
         return res.status(403).json({ message: "Can only edit your own payments" });
+      if (!hasAppointment) return res.status(403).json({ message: "Masters can only register payments for their appointments" });
+      const target = await db.query(`SELECT master_id FROM ${schema}.appointments WHERE id = $1`, [appointment_id]);
+      if (target.rows[0]?.master_id !== masterResult.rows[0].id)
+        return res.status(403).json({ message: "Can only link payments to your own appointments" });
     }
     // Partner exists
     const partnerResult = await db.query(`SELECT id, type FROM ${schema}.clients WHERE id = $1`, [partner_id]);
@@ -363,7 +371,7 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
   }
 });
 
-// DELETE payment (no change needed)
+// DELETE payment (admin only)
 router.delete("/:id", authenticateToken, requireFeature('payments'), async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
@@ -380,12 +388,8 @@ router.delete("/:id", authenticateToken, requireFeature('payments'), async (req,
       [id]
     );
     if (checkPayment.rows.length === 0) return res.status(404).json({ message: "Payment not found" });
-    if (role === "master") {
-      const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
-      if (masterResult.rows.length === 0) return res.status(403).json({ message: "Master profile not found" });
-      if (checkPayment.rows[0].master_id && checkPayment.rows[0].master_id !== masterResult.rows[0].id)
-        return res.status(403).json({ message: "Can only delete your own payments" });
-    }
+    // Deleting financial records is reserved for admins.
+    if (role !== "admin") return res.status(403).json({ message: "Only an admin can delete payments" });
     await db.query(`DELETE FROM ${schema}.payments WHERE id = $1`, [id]);
     res.json({ message: "Payment deleted successfully" });
   } catch (err) {
@@ -435,6 +439,7 @@ router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async 
     if (paymentResult.rows.length === 0) return res.status(404).json({ message: "Payment not found" });
     const payment = paymentResult.rows[0];
 
+    if (role === "master" && !payment.appointment_id) return res.status(403).json({ message: "Forbidden" });
     if (role === "master" && payment.appointment_id) {
       const masterResult = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [userId]);
       if (masterResult.rows.length === 0) return res.status(403).json({ message: "Master profile not found" });
@@ -538,7 +543,7 @@ router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async 
     });
   } catch (err) {
     console.error("GET INVOICE ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
