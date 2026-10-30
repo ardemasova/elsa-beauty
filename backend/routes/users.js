@@ -193,9 +193,10 @@ router.put("/:id", async (req, res, next) => {
                 name = COALESCE($4, name), phone = COALESCE($5, phone),
                 password_hash = COALESCE($6, password_hash),
                 -- new password, deactivation or role change ends existing sessions
-                token_version = token_version + CASE WHEN $6::text IS NOT NULL OR NOT $3 OR $2 <> role OR $1 <> email THEN 1 ELSE 0 END
+                token_version = token_version + CASE WHEN $6::text IS NOT NULL OR NOT $3 OR $2 <> role
+                                                    OR ($1 <> email AND NOT $8) THEN 1 ELSE 0 END
           WHERE id = $7`,
-        [email, role, isActive, req.body?.name ?? null, req.body?.phone ?? null, hash, target.id]
+        [email, role, isActive, req.body?.name ?? null, req.body?.phone ?? null, hash, target.id, isSelf]
       );
       if (tenantIds) {
         await client.query(`DELETE FROM public.user_tenants WHERE user_id = $1`, [target.id]);

@@ -82,6 +82,7 @@ async function loadContext(userId, tenantId) {
     const allowed =
       r.tenant_id &&
       r.tenant_active &&
+      !/^(public|information_schema|pg_.*)$/i.test(r.schema_name) &&
       r.tenant_account_id === r.account_id &&
       (isOwner || r.linked);
     if (!allowed) return { ...ctx, tenantDenied: true };

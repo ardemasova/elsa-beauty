@@ -5,13 +5,14 @@
  * 1) Freeze the demo data that every new demo sign-up receives:
  *
  *      npm run demo-template -- snapshot --from salon_demo
- *      npm run demo-template -- snapshot --from salon_demo --catalog-only
+ *      npm run demo-template -- snapshot --from salon_demo --include-sample-data
  *
  *    Copies the branch `--from` into the schema DEMO_TEMPLATE_SCHEMA
  *    (default "demo_template"), replacing a previous snapshot. The template is
  *    not a branch: nobody can log into it or change it through the app.
- *    --catalog-only copies services, items, expenses, VAT and settings but no
- *    clients/masters/appointments/payments.
+ *    By default only the catalog is copied (settings, services, items,
+ *    expenses, VAT). --include-sample-data also copies clients, masters,
+ *    appointments and payments: make sure they contain no real people first.
  *
  * 2) Give every old demo user their own private demo (before this version all
  *    demo sign-ups shared one branch and saw each other's data):
@@ -22,10 +23,12 @@
  *    new demo account with a copy of the template and becomes its owner. Their
  *    login and password stay the same.
  */
-const { pool } = require("../db");
+const { pool, withTransaction } = require("../db");
 const { migrateTenantSchema } = require("../migrations/runner");
 const { cloneData, createTenant } = require("../services/provisioning");
 const { quoteIdent, isValidSchemaName } = require("../utils/sql");
+
+const RESERVED = /^(public|information_schema|pg_.*)$/i;
 
 const TEMPLATE = process.env.DEMO_TEMPLATE_SCHEMA || "demo_template";
 const CATALOG = ["settings", "services", "items", "expenses", "vat"];
@@ -39,24 +42,29 @@ const flag = (name) => process.argv.includes(`--${name}`);
 async function snapshot() {
   const from = arg("from");
   if (!from || !isValidSchemaName(from)) throw new Error("--from <branch schema> is required");
-  if (!isValidSchemaName(TEMPLATE)) throw new Error(`Invalid DEMO_TEMPLATE_SCHEMA: ${TEMPLATE}`);
+  if (!isValidSchemaName(TEMPLATE) || RESERVED.test(TEMPLATE)) throw new Error(`Invalid DEMO_TEMPLATE_SCHEMA: ${TEMPLATE}`);
   if (from === TEMPLATE) throw new Error("--from must be a different schema than the template");
 
   const live = await pool.query(`SELECT 1 FROM public.tenants WHERE schema_name = $1`, [TEMPLATE]);
   if (live.rows.length) throw new Error(`"${TEMPLATE}" is a live branch; choose another DEMO_TEMPLATE_SCHEMA`);
 
+  // Built in a temporary schema and swapped in at the end, so a failed run
+  // leaves the previous template untouched and sign-ups never see a half copy.
+  const building = `${TEMPLATE}_new`;
   const client = await pool.connect();
   try {
     await migrateTenantSchema(client, from, () => {});
-    await client.query(`DROP SCHEMA IF EXISTS ${quoteIdent(TEMPLATE)} CASCADE`);
-    await migrateTenantSchema(client, TEMPLATE, () => {});
+    await client.query(`DROP SCHEMA IF EXISTS ${quoteIdent(building)} CASCADE`);
+    await migrateTenantSchema(client, building, () => {});
     await client.query("BEGIN");
-    await cloneData(client, from, TEMPLATE);
-    if (flag("catalog-only")) {
+    await cloneData(client, from, building);
+    if (!flag("include-sample-data")) {
       for (const t of ["payments", "appointments", "clients", "masters"]) {
-        await client.query(`DELETE FROM ${quoteIdent(TEMPLATE)}.${t}`);
+        await client.query(`DELETE FROM ${quoteIdent(building)}.${t}`);
       }
     }
+    await client.query(`DROP SCHEMA IF EXISTS ${quoteIdent(TEMPLATE)} CASCADE`);
+    await client.query(`ALTER SCHEMA ${quoteIdent(building)} RENAME TO ${quoteIdent(TEMPLATE)}`);
     await client.query("COMMIT");
 
     console.log(`✅ Demo template "${TEMPLATE}" created from "${from}". Contents:`);
@@ -64,9 +72,12 @@ async function snapshot() {
       const { rows } = await client.query(`SELECT count(*)::int AS n FROM ${quoteIdent(TEMPLATE)}.${t}`);
       console.log(`   ${t.padEnd(13)} ${rows[0].n}`);
     }
-    console.log("   Check that it contains no real people's data before using it for sign-ups.");
+    if (flag("include-sample-data")) {
+      console.log("   Sample data included: check that it contains no real people's data.");
+    }
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
+    await client.query(`DROP SCHEMA IF EXISTS ${quoteIdent(building)} CASCADE`).catch(() => {});
     throw err;
   } finally {
     client.release();
@@ -98,19 +109,28 @@ async function splitUsers() {
       [`Demo: ${u.name || u.email}`, plan]
     );
     const accountId = acc.rows[0].id;
+    let tenant;
     try {
-      const tenant = await createTenant({ accountId, name: "Demo salon", cloneFrom: TEMPLATE, ownerUserId: u.id });
-      await pool.query(`DELETE FROM public.user_tenants WHERE user_id = $1`, [u.id]);
-      await pool.query(
-        `UPDATE public.users SET account_id = $1, role = 'owner', tenant_id = $2,
-                token_version = token_version + 1
-          WHERE id = $3`,
-        [accountId, tenant.id, u.id]
-      );
+      tenant = await createTenant({ accountId, name: "Demo salon", cloneFrom: TEMPLATE, ownerUserId: u.id });
+      await withTransaction(async (c) => {
+        // Only the link to the shared demo branch is removed.
+        await c.query(`DELETE FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2`, [u.id, t.rows[0].id]);
+        await c.query(
+          `UPDATE public.users SET account_id = $1, role = 'owner', tenant_id = $2,
+                  token_version = token_version + 1
+            WHERE id = $3`,
+          [accountId, tenant.id, u.id]
+        );
+        await c.query(`DELETE FROM public.user_tenants WHERE user_id = $1`, [u.id]); // other links belonged to the old account
+      });
       console.log(`   moved ${u.email} -> own demo (${tenant.schema_name})`);
     } catch (err) {
+      if (tenant) {
+        await pool.query(`DELETE FROM public.tenants WHERE id = $1`, [tenant.id]).catch(() => {});
+        await pool.query(`DROP SCHEMA IF EXISTS ${quoteIdent(tenant.schema_name)} CASCADE`).catch(() => {});
+      }
       await pool.query(`DELETE FROM public.accounts WHERE id = $1`, [accountId]).catch(() => {});
-      throw new Error(`${u.email}: ${err.message}`);
+      throw new Error(`${u.email}: ${err.message} (this user was left unchanged)`);
     }
   }
   console.log(`✅ ${users.length} demo user(s) now have their own private demo.`);

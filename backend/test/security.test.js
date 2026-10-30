@@ -306,7 +306,7 @@ test("demo sign-up is refused until a frozen template exists, never clones a liv
 });
 
 test("demo sign-up creates a separate account from the frozen template", async () => {
-  execFileSync(process.execPath, [path.join(__dirname, "..", "scripts", "demo-template.js"), "snapshot", "--from", "salon_demo"], {
+  execFileSync(process.execPath, [path.join(__dirname, "..", "scripts", "demo-template.js"), "snapshot", "--from", "salon_demo", "--include-sample-data"], {
     env: process.env,
     stdio: "pipe",
   });
@@ -436,4 +436,30 @@ test("masters do not see purchase cost or other masters' client phones", async (
   assert.ok(services.data.length && services.data.every((x) => !("cost" in x)));
   const adminServices = await api("GET", "/api/services", { token: adminToken });
   assert.ok(adminServices.data.every((x) => "cost" in x));
+});
+
+test("split-users gives remaining shared-demo users their own demo, keeping their login", async () => {
+  const before = await db.query(
+    `SELECT u.email FROM public.users u JOIN public.user_tenants ut ON ut.user_id = u.id
+      WHERE ut.tenant_id = $1 AND u.is_active AND u.role <> 'owner'
+        AND u.email NOT IN ('admin@demo.com', 'master@demo.com')`,
+    [SALON]
+  );
+  assert.ok(before.rows.length > 0);
+  execFileSync(process.execPath, [path.join(__dirname, "..", "scripts", "demo-template.js"), "split-users",
+    "--tenant", "salon_demo", "--keep", "admin@demo.com,master@demo.com"], { env: process.env, stdio: "pipe" });
+
+  const after = await db.query(
+    `SELECT u.email FROM public.users u JOIN public.user_tenants ut ON ut.user_id = u.id
+      WHERE ut.tenant_id = $1 AND u.is_active AND u.role <> 'owner'`,
+    [SALON]
+  );
+  assert.deepEqual(after.rows.map((r) => r.email).sort(), ["admin@demo.com", "master@demo.com"]);
+
+  const moved = await login(before.rows[0].email);
+  assert.equal(moved.user.isOwner, true);
+  assert.notEqual(moved.currentTenant.id, SALON);
+  // the admin who stayed cannot see the moved user any more
+  const list = await api("GET", "/api/users", { token: adminToken });
+  assert.ok(!list.data.some((u) => u.email === before.rows[0].email));
 });

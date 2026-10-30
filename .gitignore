@@ -25,6 +25,9 @@ frontend/build/
 elsa_local.dump
 *.dump
 *.sql
+# ...but schema migrations and test fixtures (structure + fake data only) belong in git
+!backend/migrations/**/*.sql
+!backend/test/fixtures/*.sql
 
 # user uploads (personal data) - never commit
 backend/uploads/
