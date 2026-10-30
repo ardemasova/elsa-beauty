@@ -13,6 +13,20 @@ const { quoteIdent, isValidSchemaName } = require("../utils/sql");
 // Copy order respects foreign keys.
 const CLONE_TABLES = ["settings", "services", "masters", "clients", "items", "expenses", "vat", "appointments", "payments"];
 
+const CLONE_FILTERS = {
+  appointments: `WHERE x.master_id IN (SELECT id FROM $FROM.masters)
+                   AND x.service_id IN (SELECT id FROM $FROM.services)
+                   AND (x.client_id IS NULL OR x.client_id IN (SELECT id FROM $FROM.clients))`,
+  payments: `WHERE x.partner_id IN (SELECT id FROM $FROM.clients)
+               AND (x.item_id IS NULL OR x.item_id IN (SELECT id FROM $FROM.items))
+               AND (x.expense_id IS NULL OR x.expense_id IN (SELECT id FROM $FROM.expenses))
+               AND (x.appointment_id IS NULL OR x.appointment_id IN (
+                     SELECT a.id FROM $FROM.appointments a
+                      WHERE a.master_id IN (SELECT id FROM $FROM.masters)
+                        AND a.service_id IN (SELECT id FROM $FROM.services)
+                        AND (a.client_id IS NULL OR a.client_id IN (SELECT id FROM $FROM.clients))))`,
+};
+
 // Spain: general 21%, reduced 10%, super-reduced 4%.
 const DEFAULT_VAT_RATES = [
   { percent: 21, is_default: "Y" },
@@ -31,7 +45,7 @@ function newSchemaName(tenantId) {
   return `b_${tenantId.replace(/-/g, "")}`;
 }
 
-async function cloneData(client, fromSchema, toSchema) {
+async function cloneData(client, fromSchema, toSchema, ownerUserId) {
   const from = quoteIdent(fromSchema);
   const to = quoteIdent(toSchema);
   for (const table of CLONE_TABLES) {
@@ -46,7 +60,15 @@ async function cloneData(client, fromSchema, toSchema) {
     );
     if (!rows.length) continue;
     const cols = rows.map((r) => quoteIdent(r.column_name)).join(", ");
-    await client.query(`INSERT INTO ${to}.${table} (${cols}) SELECT ${cols} FROM ${from}.${table}`);
+    // Old data may reference deleted rows; such rows are not copied (the
+    // copy has enforced foreign keys).
+    const where = (CLONE_FILTERS[table] || "").replaceAll("$FROM", from);
+    await client.query(`INSERT INTO ${to}.${table} (${cols}) SELECT ${cols} FROM ${from}.${table} x ${where}`);
+  }
+  // Demo masters belonged to logins of the template; point them at the new
+  // owner so the copy references nobody outside its own account.
+  if (ownerUserId) {
+    await client.query(`UPDATE ${to}.masters SET user_id = $1`, [ownerUserId]);
   }
   for (const table of ["items", "expenses"]) {
     await client.query(
@@ -68,12 +90,13 @@ async function seedDefaults(client, schema, branchName) {
  * @param {object} opts
  * @param {string} opts.accountId
  * @param {string} opts.name
- * @param {string} [opts.cloneFrom]  schema to copy data from (demo sign-ups)
+ * @param {string} [opts.cloneFrom]  template schema to copy data from (demo sign-ups)
+ * @param {string} [opts.ownerUserId]
  */
-async function createTenant({ accountId, name, cloneFrom }) {
+async function createTenant({ accountId, name, cloneFrom, ownerUserId }) {
   const branchName = String(name || "").trim();
   if (!branchName) throw new ProvisioningError("Branch name is required");
-  if (cloneFrom && !isValidSchemaName(cloneFrom)) throw new ProvisioningError("Invalid template", 500);
+  if (cloneFrom) await assertTemplate(cloneFrom);
 
   await assertBranchLimit(pool, accountId);
 
@@ -82,16 +105,13 @@ async function createTenant({ accountId, name, cloneFrom }) {
   const client = await pool.connect();
   try {
     await migrateTenantSchema(client, schema, () => {});
-    if (cloneFrom) {
-      await migrateTenantSchema(client, cloneFrom, () => {});
-    }
 
     return await withTransactionOn(client, async () => {
       // Lock the account row so two parallel requests cannot both pass the limit.
       await client.query(`SELECT id FROM public.accounts WHERE id = $1 FOR UPDATE`, [accountId]);
       await assertBranchLimit(client, accountId);
 
-      if (cloneFrom) await cloneData(client, cloneFrom, schema);
+      if (cloneFrom) await cloneData(client, cloneFrom, schema, ownerUserId);
       else await seedDefaults(client, schema, branchName);
 
       const { rows } = await client.query(
@@ -109,6 +129,23 @@ async function createTenant({ accountId, name, cloneFrom }) {
   } finally {
     client.release();
   }
+}
+
+/**
+ * The demo template must be a frozen schema that is NOT a live branch;
+ * otherwise anyone working in that branch could plant data that is copied
+ * into every new demo account. Create/refresh it with:
+ *   npm run demo-template -- snapshot --from salon_demo
+ */
+async function assertTemplate(schema) {
+  if (!isValidSchemaName(schema)) throw new ProvisioningError("Invalid demo template", 500);
+  const { rows } = await pool.query(
+    `SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = $1) AS present,
+            EXISTS (SELECT 1 FROM public.tenants WHERE schema_name = $1) AS live`,
+    [schema]
+  );
+  if (!rows[0].present) throw new ProvisioningError("Demo is not configured yet. Please try again later.", 503);
+  if (rows[0].live) throw new ProvisioningError("Demo template must not be a live branch", 500);
 }
 
 async function withTransactionOn(client, fn) {
@@ -192,7 +229,12 @@ async function createAccount({ accountName, planCode = "standard", ownerEmail, o
 
   let tenant;
   try {
-    tenant = await createTenant({ accountId: account.id, name: branchName || accountName || "Main", cloneFrom });
+    tenant = await createTenant({
+      accountId: account.id,
+      name: branchName || accountName || "Main",
+      cloneFrom,
+      ownerUserId: owner.id,
+    });
   } catch (err) {
     // No branch -> the account is useless; remove it so the email can be reused.
     await pool.query(`DELETE FROM public.accounts WHERE id = $1`, [account.id]).catch(() => {});
@@ -204,6 +246,7 @@ async function createAccount({ accountName, planCode = "standard", ownerEmail, o
 }
 
 module.exports = {
+  cloneData,
   createAccount,
   createTenant,
   assertUserLimit,

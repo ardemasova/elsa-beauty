@@ -12,7 +12,7 @@ const { loadAccountFeatures } = require("../services/featureCache");
 const router = express.Router();
 
 // Used when the email is unknown, so a wrong email takes as long as a wrong password.
-const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 10);
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 12);
 
 async function sessionPayload(ctx) {
   const tenants = (await listAccessibleTenants(ctx)).filter((t) => t.is_active);
@@ -35,6 +35,8 @@ async function sessionPayload(ctx) {
 function tokenFor(ctx) {
   return signToken({
     userId: ctx.userId,
+    tokenVersion: ctx.tokenVersion,
+    authTime: ctx.authTime,
     tenantId: ctx.tenant?.id,
     role: ctx.role,
     accountRole: ctx.accountRole,
@@ -104,6 +106,7 @@ router.post("/switch-tenant", authenticate(), async (req, res, next) => {
 
     const ctx = await loadContext(req.auth.userId, tenantId);
     if (!ctx || ctx.tenantDenied || !ctx.tenant) return res.status(403).json({ message: "No access to this branch" });
+    ctx.authTime = req.auth.authTime; // switching must not extend the session
 
     await db.query(`UPDATE public.users SET tenant_id = $1 WHERE id = $2`, [tenantId, ctx.userId]);
     res.json({ token: tokenFor(ctx), ...(await sessionPayload(ctx)) });
@@ -124,8 +127,14 @@ router.post("/change-password", authenticate(), async (req, res, next) => {
       return res.status(400).json({ message: "Current password is incorrect" });
     }
     const hash = await bcrypt.hash(next_, 12);
-    await db.query(`UPDATE public.users SET password_hash = $1 WHERE id = $2`, [hash, req.auth.userId]);
-    res.json({ message: "Password changed" });
+    // Bumping token_version logs out every other session of this user.
+    const { rows: upd } = await db.query(
+      `UPDATE public.users SET password_hash = $1, token_version = token_version + 1
+        WHERE id = $2 RETURNING token_version`,
+      [hash, req.auth.userId]
+    );
+    const ctx = { ...req.auth, tokenVersion: upd[0].token_version, authTime: Math.floor(Date.now() / 1000) };
+    res.json({ message: "Password changed", token: tokenFor(ctx) });
   } catch (err) {
     next(err);
   }

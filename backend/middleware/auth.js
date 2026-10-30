@@ -19,6 +19,8 @@ const { quoteIdent } = require("../utils/sql");
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
 const TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "12h";
+// A session can be refreshed, but never lives longer than this after login.
+const SESSION_MAX_SECONDS = Number(process.env.SESSION_MAX_DAYS || 30) * 24 * 3600;
 
 function signToken(ctx) {
   // role/email/schema_name are included only so the UI can render without an
@@ -27,6 +29,8 @@ function signToken(ctx) {
     {
       sub: ctx.userId,
       tid: ctx.tenantId || null,
+      tv: ctx.tokenVersion,
+      auth_time: ctx.authTime || Math.floor(Date.now() / 1000),
       role: ctx.role,
       accountRole: ctx.accountRole,
       email: ctx.email,
@@ -44,7 +48,7 @@ function signToken(ctx) {
  */
 async function loadContext(userId, tenantId) {
   const { rows } = await db.query(
-    `SELECT u.id, u.email, u.name, u.role AS account_role, u.is_active, u.account_id,
+    `SELECT u.id, u.email, u.name, u.role AS account_role, u.is_active, u.account_id, u.token_version,
             a.is_active AS account_active, a.name AS account_name, a.is_demo,
             t.id AS tenant_id, t.name AS tenant_name, t.schema_name, t.is_active AS tenant_active,
             t.account_id AS tenant_account_id,
@@ -62,6 +66,7 @@ async function loadContext(userId, tenantId) {
   const isOwner = r.account_role === "owner";
   const ctx = {
     userId: r.id,
+    tokenVersion: r.token_version,
     email: r.email,
     name: r.name,
     accountId: r.account_id,
@@ -141,11 +146,23 @@ function authenticate({ requireTenant = false } = {}) {
     }
     // Tokens issued before this version have no `sub`: force a fresh login.
     if (!payload.sub) return res.status(401).json({ message: "Session expired, please log in again" });
+    if (!payload.auth_time || Date.now() / 1000 - payload.auth_time > SESSION_MAX_SECONDS) {
+      return res.status(401).json({ message: "Session expired, please log in again" });
+    }
 
     try {
-      const ctx = await loadContext(payload.sub, payload.tid);
-      if (!ctx) return res.status(401).json({ message: "Account is disabled" });
-      if (ctx.tenantDenied) return res.status(403).json({ message: "No access to this branch" });
+      let ctx = await loadContext(payload.sub, payload.tid);
+      // Deactivated, deleted, or password changed since this token was issued.
+      if (!ctx || ctx.tokenVersion !== payload.tv) {
+        return res.status(401).json({ message: "Session expired, please log in again" });
+      }
+      ctx.authTime = payload.auth_time;
+      if (ctx.tenantDenied) {
+        if (requireTenant) return res.status(403).json({ message: "No access to this branch" });
+        // Account-level routes (me / switch / refresh) keep working so the
+        // user can move to a branch they still have.
+        ctx = { ...ctx, tenantDenied: false, tenant: null };
+      }
       if (requireTenant && !ctx.tenant) return res.status(400).json({ message: "Select a branch first" });
       attach(req, ctx);
       next();

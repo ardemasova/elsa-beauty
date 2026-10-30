@@ -80,8 +80,27 @@ export async function reloadSession() {
   return data;
 }
 
-export function changePassword(currentPassword, newPassword) {
-  return post("/auth/change-password", { current_password: currentPassword, new_password: newPassword });
+export async function changePassword(currentPassword, newPassword) {
+  const data = await post("/auth/change-password", { current_password: currentPassword, new_password: newPassword });
+  // Other sessions are logged out; this one continues with the new token.
+  if (data?.token) {
+    localStorage.setItem("token", data.token);
+    window.dispatchEvent(new CustomEvent("tokenChanged", { detail: data.token }));
+  }
+  return data;
+}
+
+/** The current branch was closed or the user was removed from it: move to another one. */
+async function recoverBranch() {
+  const session = await reloadSession();
+  const next = session?.tenants?.[0];
+  if (next) {
+    await switchTenant(next.id);
+    window.location.assign("/dashboard");
+  } else {
+    clearSession();
+    window.location.assign("/login");
+  }
 }
 
 /**
@@ -103,6 +122,13 @@ export function installSessionHandling() {
       redirecting = true;
       clearSession();
       window.location.assign("/login?expired=1");
+    }
+    if (res.status === 403 && hadAuth && !redirecting) {
+      const body = await res.clone().json().catch(() => null);
+      if (body?.message === "No access to this branch") {
+        redirecting = true;
+        recoverBranch().catch(() => window.location.assign("/login"));
+      }
     }
     return res;
   };

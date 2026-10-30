@@ -18,9 +18,17 @@ router.get("/", authenticateToken, requireFeature('partners'), async (req, res) 
     // Masters need the customer list to book appointments, nothing more:
     // no vendors, no bank details.
     if (req.user.role !== "admin") {
+      // Contact details only for the master's own clients.
       const { rows } = await db.query(
-        `SELECT id, name, type, phone, photo_url FROM ${schema}.clients
-          WHERE type = 'customer' ORDER BY name`
+        `SELECT c.id, c.name, c.type, c.photo_url,
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM ${schema}.appointments a
+                    JOIN ${schema}.masters m ON m.id = a.master_id
+                   WHERE a.client_id = c.id AND m.user_id = $1
+                ) THEN c.phone END AS phone
+           FROM ${schema}.clients c
+          WHERE c.type = 'customer' ORDER BY c.name`,
+        [req.user.id]
       );
       return res.json(rows);
     }

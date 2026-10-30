@@ -8,7 +8,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, listAccessibleTenants } = require("../middleware/auth");
 const { assertUserLimit } = require("../services/provisioning");
 
 const router = express.Router();
@@ -65,6 +65,17 @@ async function resolveTenantIds(req, body) {
     [req.user.accountId, ids]
   );
   return rows.length === ids.length ? ids : null;
+}
+
+/**
+ * An admin may change logins/passwords or delete a user only if every branch
+ * that user works in is also one of the admin's branches. Otherwise the admin
+ * could take over a master who also works in a branch the admin cannot see.
+ */
+async function adminControlsAllBranchesOf(req, target) {
+  if (req.user.isOwner) return true;
+  const mine = new Set((await listAccessibleTenants(req.auth)).map((t) => t.id));
+  return target.tenant_ids.every((id) => mine.has(id));
 }
 
 function allowedRoles(req) {
@@ -153,6 +164,13 @@ router.put("/:id", async (req, res, next) => {
     if (isSelf && role !== target.role) return res.status(400).json({ message: "You cannot change your own role" });
     if (!isSelf && !allowedRoles(req).includes(role)) return res.status(403).json({ message: `You cannot assign role "${role}"` });
 
+    if (isSelf && req.body?.password) {
+      return res.status(400).json({ message: "Use \"Change password\" to change your own password" });
+    }
+    if (!isSelf && !(await adminControlsAllBranchesOf(req, target))) {
+      return res.status(403).json({ message: "This user also works in other branches. Ask the account owner to change it." });
+    }
+
     const isActive = typeof req.body?.is_active === "boolean" ? req.body.is_active : target.is_active;
     if (isSelf && !isActive) return res.status(400).json({ message: "You cannot deactivate yourself" });
 
@@ -173,7 +191,9 @@ router.put("/:id", async (req, res, next) => {
         `UPDATE public.users
             SET email = $1, role = $2, is_active = $3,
                 name = COALESCE($4, name), phone = COALESCE($5, phone),
-                password_hash = COALESCE($6, password_hash)
+                password_hash = COALESCE($6, password_hash),
+                -- new password, deactivation or role change ends existing sessions
+                token_version = token_version + CASE WHEN $6::text IS NOT NULL OR NOT $3 OR $2 <> role OR $1 <> email THEN 1 ELSE 0 END
           WHERE id = $7`,
         [email, role, isActive, req.body?.name ?? null, req.body?.phone ?? null, hash, target.id]
       );
@@ -201,6 +221,12 @@ router.delete("/:id", async (req, res, next) => {
     if (target.id === req.user.id) return res.status(400).json({ message: "You cannot delete yourself" });
     if (target.role === "owner") return res.status(403).json({ message: "The account owner cannot be deleted" });
     if (!req.user.isOwner && target.role !== "master") return res.status(403).json({ message: "Admins can only remove masters" });
+
+    if (!(await adminControlsAllBranchesOf(req, target))) {
+      // Works elsewhere too: only remove them from this branch.
+      await db.query(`DELETE FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2`, [target.id, req.tenant.id]);
+      return res.json({ message: "User removed from this branch" });
+    }
 
     await db.query(`DELETE FROM public.users WHERE id = $1 AND account_id = $2`, [target.id, req.user.accountId]);
     res.json({ message: "User deleted successfully" });

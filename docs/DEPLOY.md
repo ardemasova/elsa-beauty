@@ -87,7 +87,28 @@ docker compose run --rm backend npm run create-account -- \
   --name "Salon Lola" --email owner@salonlola.es --plan standard --branch "Lola Centro"
 ```
 
-## 6. Сменить пароль базы (рекомендуется)
+## 6. Демо-доступ
+
+Раньше все, кто регистрировался на демо, становились админами одного общего
+филиала `salon_demo` и видели данные и контакты друг друга. Теперь каждый
+получает свой отдельный демо-салон — копию «замороженного» шаблона.
+
+1. Приведите `salon_demo` в порядок (удалите то, что вносили посетители),
+   затем сделайте из него шаблон:
+   ```bash
+   docker compose run --rm backend npm run demo-template -- snapshot --from salon_demo
+   ```
+   (`--catalog-only` — скопировать только услуги, товары, расходы и НДС, без
+   клиентов, мастеров и записей). Повторяйте, когда захотите обновить демо.
+   Пока шаблона нет, форма демо-регистрации отвечает «попробуйте позже».
+2. Разведите старых демо-пользователей по отдельным демо-салонам (их логины и
+   пароли не меняются; свои email укажите в `--keep`):
+   ```bash
+   docker compose run --rm backend npm run demo-template -- split-users \
+     --tenant salon_demo --keep ваш@email
+   ```
+
+## 7. Сменить пароль базы (рекомендуется)
 
 ```bash
 docker compose exec db psql -U postgres -c "ALTER USER postgres PASSWORD 'новый_длинный_пароль'"

@@ -193,7 +193,7 @@ router.post("/", authenticateToken, requireFeature('payments'), async (req, res)
 
     // Appointment check (if any)
     if (hasAppointment) {
-      const appointmentResult = await db.query(`SELECT id, master_id FROM ${schema}.appointments WHERE id = $1`, [
+      const appointmentResult = await db.query(`SELECT id, master_id, client_id FROM ${schema}.appointments WHERE id = $1`, [
         appointment_id,
       ]);
       if (appointmentResult.rows.length === 0) return res.status(404).json({ message: "Appointment not found" });
@@ -202,6 +202,9 @@ router.post("/", authenticateToken, requireFeature('payments'), async (req, res)
         if (masterResult.rows.length === 0) return res.status(403).json({ message: "Master profile not found" });
         if (appointmentResult.rows[0].master_id !== masterResult.rows[0].id)
           return res.status(403).json({ message: "Can only create payments for your appointments" });
+        // A master only records what the appointment's client paid.
+        if (type !== "incoming" || appointmentResult.rows[0].client_id !== partner_id)
+          return res.status(403).json({ message: "Masters can only record the client's payment for their appointment" });
       }
     }
 
@@ -249,6 +252,8 @@ router.post("/", authenticateToken, requireFeature('payments'), async (req, res)
 
 // PUT update payment
 router.put("/:id", authenticateToken, requireFeature('payments'), async (req, res) => {
+  // Changing recorded money is reserved for admins.
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can edit payments" });
   const { id } = req.params;
   const { partner_id, appointment_id, item_id, expense_id, qty, amount, vat_percent, method, type } = req.body;
   const userId = req.user.id;
@@ -312,9 +317,15 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
       if (target.rows[0]?.master_id !== masterResult.rows[0].id)
         return res.status(403).json({ message: "Can only link payments to your own appointments" });
     }
-    // Partner exists
+    // Partner exists and matches the payment direction
     const partnerResult = await db.query(`SELECT id, type FROM ${schema}.clients WHERE id = $1`, [partner_id]);
     if (partnerResult.rows.length === 0) return res.status(404).json({ message: "Partner not found" });
+    const expectedType = partnerResult.rows[0].type === "customer" ? "incoming" : "outgoing";
+    if (type !== expectedType) {
+      return res.status(400).json({
+        message: `${partnerResult.rows[0].type === "customer" ? "Customer" : "Vendor"} payments must be ${expectedType}`,
+      });
+    }
 
     // Appointment check
     if (hasAppointment) {

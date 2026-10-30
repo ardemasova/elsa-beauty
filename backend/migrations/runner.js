@@ -64,8 +64,12 @@ async function migratePublic(client, log = console.log) {
 }
 
 /** Creates (if needed) and migrates one branch schema. `client` must not be inside a transaction. */
+const RESERVED = /^(public|information_schema|pg_.*)$/i;
+
 async function migrateTenantSchema(client, schemaName, log = console.log) {
-  if (!isValidSchemaName(schemaName)) throw new Error(`Invalid schema name: ${schemaName}`);
+  if (!isValidSchemaName(schemaName) || RESERVED.test(schemaName)) {
+    throw new Error(`Refusing to use "${schemaName}" as a branch schema`);
+  }
   const q = quoteIdent(schemaName);
   await client.query(`CREATE SCHEMA IF NOT EXISTS ${q}`);
   await ensureTable(client, q);
@@ -81,7 +85,7 @@ async function tenantSchemas(client) {
   rows.forEach((r) => names.add(r.schema_name));
 
   // The demo template is cloned for every demo sign-up, keep it migrated too.
-  const template = process.env.DEMO_TEMPLATE_SCHEMA || "salon_demo";
+  const template = process.env.DEMO_TEMPLATE_SCHEMA || "demo_template";
   const t = await client.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [template]);
   if (t.rows.length) names.add(template);
   return [...names];
@@ -94,9 +98,23 @@ async function migrateAll(log = console.log) {
     await client.query("SELECT pg_advisory_lock($1)", [LOCK_KEY]);
     log("Public schema:");
     await migratePublic(client, log);
+
+    // One broken branch must not stop the others from being migrated.
+    const failed = [];
     for (const schema of await tenantSchemas(client)) {
       log(`Branch schema ${schema}:`);
-      await migrateTenantSchema(client, schema, log);
+      try {
+        await migrateTenantSchema(client, schema, log);
+      } catch (err) {
+        log(`  ❌ ${err.message}`);
+        failed.push(schema);
+      }
+    }
+    if (failed.length) {
+      throw new Error(
+        `Branch migration failed for: ${failed.join(", ")}. Other branches are migrated. ` +
+          `Fix the reported problem and run "npm run migrate" again (it continues where it stopped).`
+      );
     }
   } finally {
     await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]).catch(() => {});

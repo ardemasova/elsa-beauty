@@ -2,7 +2,8 @@
  * POST /api/demo-register  { email, name, phone? }
  *
  * Every demo sign-up gets its OWN account and branch, filled with a copy of the
- * demo data (DEMO_TEMPLATE_SCHEMA, default "salon_demo"). Previously all demo
+ * frozen demo data (DEMO_TEMPLATE_SCHEMA, default "demo_template", created
+ * with `npm run demo-template -- snapshot`). Previously all demo
  * users were admins of one shared branch and could see each other and change
  * (or delete) everything.
  */
@@ -42,12 +43,13 @@ router.post("/", async (req, res, next) => {
       ownerPhone: phone,
       branchName: "Demo salon",
       isDemo: true,
-      cloneFrom: process.env.DEMO_TEMPLATE_SCHEMA || "salon_demo",
+      cloneFrom: process.env.DEMO_TEMPLATE_SCHEMA || "demo_template",
     });
   } catch (err) {
     if (err.status === 409) {
       return res.status(409).json({ success: false, message: "This email is already registered" });
     }
+    if (err.status === 503) return res.status(503).json({ success: false, message: err.message });
     return next(err);
   }
 

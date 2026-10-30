@@ -6,6 +6,19 @@ const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
 
+// Purchase cost (and so the salon's margin) is visible to admins only.
+router.use((req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    if (req.method === "GET" && req.user && req.user.role !== "admin") {
+      const strip = (o) => (o && typeof o === "object" ? (({ cost, ...rest }) => rest)(o) : o); // eslint-disable-line no-unused-vars
+      body = Array.isArray(body) ? body.map(strip) : strip(body);
+    }
+    return json(body);
+  };
+  next();
+});
+
 // =======================
 // GET all items (admin + master)
 // supports optional query: ?status=all|active|inactive

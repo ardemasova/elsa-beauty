@@ -15,6 +15,8 @@ const assert = require("node:assert/strict");
 const jwt = require("jsonwebtoken");
 const app = require("../index");
 const db = require("../db");
+const { execFileSync } = require("node:child_process");
+const path = require("node:path");
 const { createAccount } = require("../services/provisioning");
 
 let server;
@@ -92,7 +94,7 @@ test("tokens in the old format (and forged tokens) are rejected", async () => {
 });
 
 test("a valid token cannot be pointed at another salon's branch", async () => {
-  const t = jwt.sign({ sub: HOSPI_ADMIN, tid: SALON }, process.env.ACCESS_TOKEN_SECRET);
+  const t = jwt.sign({ sub: HOSPI_ADMIN, tid: SALON, tv: 0, auth_time: Math.floor(Date.now() / 1000) }, process.env.ACCESS_TOKEN_SECRET);
   assert.equal((await api("GET", "/api/clients", { token: t })).status, 403);
   const sw = await api("POST", "/api/auth/switch-tenant", { token: hospiToken, body: { tenant_id: SALON } });
   assert.equal(sw.status, 403);
@@ -298,12 +300,25 @@ test("uploads need login, accept only real images, and stay within the branch", 
 
 // --- Demo sign-up ---------------------------------------------------------------
 
-test("demo sign-up creates a separate account with a copy of the demo data", async () => {
+test("demo sign-up is refused until a frozen template exists, never clones a live branch", async () => {
+  const r = await api("POST", "/api/demo-register", { body: { email: "early@test.com", name: "Early" } });
+  assert.equal(r.status, 503);
+});
+
+test("demo sign-up creates a separate account from the frozen template", async () => {
+  execFileSync(process.execPath, [path.join(__dirname, "..", "scripts", "demo-template.js"), "snapshot", "--from", "salon_demo"], {
+    env: process.env,
+    stdio: "pipe",
+  });
+
+  // Data planted in the live demo branch AFTER the snapshot must not reach new demos.
+  await api("POST", "/api/clients", { token: adminToken, body: { name: "Planted by a prospect", phone: "1", type: "customer" } });
+
   const r = await api("POST", "/api/demo-register", { body: { email: "prospect@test.com", name: "Prospect" } });
   assert.equal(r.status, 201, JSON.stringify(r.data));
 
   const { rows } = await db.query(
-    `SELECT a.is_demo, t.schema_name, u.role FROM public.users u
+    `SELECT u.id AS user_id, a.is_demo, t.schema_name, u.role FROM public.users u
        JOIN public.accounts a ON a.id = u.account_id
        JOIN public.tenants t ON t.account_id = a.id
       WHERE u.email = 'prospect@test.com'`
@@ -311,11 +326,114 @@ test("demo sign-up creates a separate account with a copy of the demo data", asy
   assert.equal(rows.length, 1);
   assert.equal(rows[0].is_demo, true);
   assert.equal(rows[0].role, "owner");
-  assert.notEqual(rows[0].schema_name, "salon_demo");
+  const s = rows[0].schema_name;
 
-  const copied = await db.query(`SELECT count(*)::int AS n FROM "${rows[0].schema_name}".appointments`);
-  assert.equal(copied.rows[0].n, 2);
+  assert.equal((await db.query(`SELECT count(*)::int AS n FROM "${s}".appointments`)).rows[0].n, 2);
+  assert.equal((await db.query(`SELECT count(*)::int AS n FROM "${s}".clients WHERE name = 'Planted by a prospect'`)).rows[0].n, 0);
+  // copied masters point to the new owner, not to users of another account
+  const foreign = await db.query(`SELECT count(*)::int AS n FROM "${s}".masters WHERE user_id <> $1`, [rows[0].user_id]);
+  assert.equal(foreign.rows[0].n, 0);
 
   const dup = await api("POST", "/api/demo-register", { body: { email: "prospect@test.com", name: "Prospect" } });
   assert.equal(dup.status, 409);
+});
+
+// --- Findings of the independent review -----------------------------------------
+
+test("legacy data: case-duplicate emails and orphaned payments did not block the migration", async () => {
+  const { rows } = await db.query(`SELECT email, is_active FROM public.users WHERE email LIKE 'case%' ORDER BY email`);
+  assert.deepEqual(rows.map((r) => r.email), ["case+dup2@demo.com", "case@demo.com"]);
+  const done = await db.query(`SELECT count(*)::int AS n FROM demo_hospi.schema_migrations`);
+  assert.equal(done.rows[0].n, 2);
+});
+
+test("admin cannot take over a master who also works in another branch", async () => {
+  const shared = "aaaaaaaa-0000-0000-0000-000000000007";
+  await db.query(`INSERT INTO public.user_tenants (user_id, tenant_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [shared, HOSPI]);
+  // (test fixture: give the shared master the hospi account so both branches are "theirs")
+  await db.query(`UPDATE public.tenants SET account_id = (SELECT account_id FROM public.tenants WHERE id = $1) WHERE id = $2`, [SALON, HOSPI]);
+  try {
+    const put = await api("PUT", `/api/users/${shared}`, { token: adminToken, body: { password: "takeover123" } });
+    assert.equal(put.status, 403);
+    const del = await api("DELETE", `/api/users/${shared}`, { token: adminToken });
+    assert.equal(del.status, 200);
+    assert.match(del.data.message, /removed from this branch/);
+    const still = await db.query(`SELECT tenant_id FROM public.user_tenants WHERE user_id = $1`, [shared]);
+    assert.deepEqual(still.rows.map((r) => r.tenant_id), [HOSPI]);
+  } finally {
+    await db.query(`UPDATE public.tenants SET account_id = (SELECT account_id FROM public.users WHERE id = $1) WHERE id = $2`, [HOSPI_ADMIN, HOSPI]);
+  }
+});
+
+test("masters can only record the client's incoming payment and cannot edit payments", async () => {
+  const appt = "a0000000-0000-0000-0000-000000000001"; // Master One's appointment, client A
+  const vendorPay = await api("POST", "/api/payments", {
+    token: masterToken,
+    body: { partner_id: "c0000000-0000-0000-0000-000000000002", appointment_id: appt, amount: 999, method: "Cash", type: "outgoing" },
+  });
+  assert.equal(vendorPay.status, 403);
+  const list = await api("GET", "/api/payments", { token: masterToken });
+  const own = list.data.find((p) => p.appointment_id === appt);
+  const edit = await api("PUT", `/api/payments/${own.id}`, {
+    token: masterToken,
+    body: { partner_id: own.partner_id, appointment_id: appt, amount: 0.01, method: "Cash", type: "incoming" },
+  });
+  assert.equal(edit.status, 403);
+});
+
+test("admin edit of a payment must keep partner type and direction consistent", async () => {
+  const list = await api("GET", "/api/payments", { token: adminToken });
+  const own = list.data.find((p) => p.appointment_id === "a0000000-0000-0000-0000-000000000001");
+  const r = await api("PUT", `/api/payments/${own.id}`, {
+    token: adminToken,
+    body: { partner_id: "c0000000-0000-0000-0000-000000000002", appointment_id: own.appointment_id, amount: 40, method: "Card", type: "incoming" },
+  });
+  assert.equal(r.status, 400);
+});
+
+test("password change logs out other sessions; own password cannot be changed via the users API", async () => {
+  await api("POST", "/api/users", { token: adminToken, body: { email: "pw@x.com", password: "password123", role: "master" } });
+  const a = (await login("pw@x.com")).token;
+  const b = (await login("pw@x.com")).token;
+  const ch = await api("POST", "/api/auth/change-password", { token: a, body: { current_password: "password123", new_password: "newpassword123" } });
+  assert.equal(ch.status, 200);
+  assert.equal((await api("GET", "/api/auth/me", { token: b })).status, 401);
+  assert.equal((await api("GET", "/api/auth/me", { token: ch.data.token })).status, 200);
+
+  const me = await api("GET", "/api/auth/me", { token: adminToken });
+  const self = await api("PUT", `/api/users/${me.data.user.id}`, { token: adminToken, body: { password: "sneaky12345" } });
+  assert.equal(self.status, 400);
+});
+
+test("sessions cannot be refreshed forever", async () => {
+  const s = await login("hospi@demo.com");
+  const p = jwt.decode(s.token);
+  const { exp, iat, ...claims } = p; // eslint-disable-line no-unused-vars
+  const old = jwt.sign({ ...claims, auth_time: p.auth_time - 31 * 24 * 3600 }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
+  assert.equal((await api("POST", "/api/auth/refresh", { token: old })).status, 401);
+});
+
+test("a user whose branch was closed can still reach account routes and move on", async () => {
+  const { tenant } = await createAccount({
+    accountName: "Closing Salon", planCode: "pro", ownerEmail: "owner-close@test.com",
+    ownerPassword: "ownerpassword1", branchName: "A",
+  });
+  const s = await login("owner-close@test.com", "ownerpassword1");
+  const second = await api("POST", "/api/tenants", { token: s.token, body: { name: "B" } });
+  const onB = (await api("POST", "/api/auth/switch-tenant", { token: s.token, body: { tenant_id: second.data.id } })).data.token;
+  // close B behind the session's back
+  await db.query(`UPDATE public.tenants SET is_active = false WHERE id = $1`, [second.data.id]);
+  assert.equal((await api("GET", "/api/clients", { token: onB })).status, 403);
+  const me = await api("GET", "/api/auth/me", { token: onB });
+  assert.equal(me.status, 200);
+  assert.equal(me.data.currentTenant, null);
+  const sw = await api("POST", "/api/auth/switch-tenant", { token: onB, body: { tenant_id: tenant.id } });
+  assert.equal(sw.status, 200);
+});
+
+test("masters do not see purchase cost or other masters' client phones", async () => {
+  const services = await api("GET", "/api/services", { token: masterToken });
+  assert.ok(services.data.length && services.data.every((x) => !("cost" in x)));
+  const adminServices = await api("GET", "/api/services", { token: adminToken });
+  assert.ok(adminServices.data.every((x) => "cost" in x));
 });
