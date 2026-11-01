@@ -54,7 +54,7 @@ app.use(
 
 const allowedOrigins = (
   process.env.CORS_ORIGINS ||
-  "https://app.elsaerp.com,https://www.app.elsaerp.com,http://localhost:5173,http://localhost:5174"
+  "https://app.elsaerp.com,https://www.app.elsaerp.com,https://elsaerp.com,https://www.elsaerp.com,http://localhost:5173,http://localhost:5174"
 )
   .split(",")
   .map((s) => s.trim())
