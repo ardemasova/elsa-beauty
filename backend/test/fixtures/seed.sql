@@ -34,3 +34,5 @@ INSERT INTO salon_demo.payments (amount,method,type,partner_id,item_id) VALUES (
 -- (3) a master who works in two branches
 INSERT INTO public.users (id,tenant_id,email,password_hash,role) VALUES
  ('aaaaaaaa-0000-0000-0000-000000000007','11111111-1111-1111-1111-111111111111','shared@demo.com', crypt('password123', gen_salt('bf',10)),'master');
+-- (4) legacy payment method the app no longer accepts
+INSERT INTO salon_demo.payments (amount,method,type,partner_id) VALUES (7,'transfer','incoming','c0000000-0000-0000-0000-000000000001');

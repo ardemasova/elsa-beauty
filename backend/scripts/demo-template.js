@@ -57,12 +57,12 @@ async function snapshot() {
     await client.query(`DROP SCHEMA IF EXISTS ${quoteIdent(building)} CASCADE`);
     await migrateTenantSchema(client, building, () => {});
     await client.query("BEGIN");
-    await cloneData(client, from, building);
-    if (!flag("include-sample-data")) {
-      for (const t of ["payments", "appointments", "clients", "masters"]) {
-        await client.query(`DELETE FROM ${quoteIdent(building)}.${t}`);
-      }
-    }
+    // Catalog only by default: people's data (clients, appointments,
+    // payments) is never even read unless explicitly asked for.
+    const tables = flag("include-sample-data")
+      ? [...CATALOG, "masters", "clients", "appointments", "payments"]
+      : CATALOG;
+    await cloneData(client, from, building, null, tables);
     await client.query(`DROP SCHEMA IF EXISTS ${quoteIdent(TEMPLATE)} CASCADE`);
     await client.query(`ALTER SCHEMA ${quoteIdent(building)} RENAME TO ${quoteIdent(TEMPLATE)}`);
     await client.query("COMMIT");

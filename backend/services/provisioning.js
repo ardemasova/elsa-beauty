@@ -17,7 +17,9 @@ const CLONE_FILTERS = {
   appointments: `WHERE x.master_id IN (SELECT id FROM $FROM.masters)
                    AND x.service_id IN (SELECT id FROM $FROM.services)
                    AND (x.client_id IS NULL OR x.client_id IN (SELECT id FROM $FROM.clients))`,
-  payments: `WHERE x.partner_id IN (SELECT id FROM $FROM.clients)
+  // Old rows may use payment methods the app no longer accepts; they are skipped.
+  payments: `WHERE x.method IN ('Card', 'Cash')
+               AND x.partner_id IN (SELECT id FROM $FROM.clients)
                AND (x.item_id IS NULL OR x.item_id IN (SELECT id FROM $FROM.items))
                AND (x.expense_id IS NULL OR x.expense_id IN (SELECT id FROM $FROM.expenses))
                AND (x.appointment_id IS NULL OR x.appointment_id IN (
@@ -45,10 +47,10 @@ function newSchemaName(tenantId) {
   return `b_${tenantId.replace(/-/g, "")}`;
 }
 
-async function cloneData(client, fromSchema, toSchema, ownerUserId) {
+async function cloneData(client, fromSchema, toSchema, ownerUserId, tables = CLONE_TABLES) {
   const from = quoteIdent(fromSchema);
   const to = quoteIdent(toSchema);
-  for (const table of CLONE_TABLES) {
+  for (const table of CLONE_TABLES.filter((t) => tables.includes(t))) {
     const { rows } = await client.query(
       `SELECT c.column_name
          FROM information_schema.columns c
