@@ -45,7 +45,8 @@ services:
     container_name: ELSA_BEAUTY_frontend
     restart: unless-stopped
     ports:
-      - "5173:80"
+      # nginx on the host proxies https://app.elsaerp.com to this port
+      - "127.0.0.1:5173:80"
     depends_on:
       - backend
 

@@ -63,8 +63,10 @@ export default function Invoice() {
   const totalInclVat = Number(payment?.amount || 0);
 
   const vatPercent = payment?.vat_percent != null ? Number(payment.vat_percent) : 0;
-  // VAT amount derived from total
-  const vatAmount = totalInclVat * (vatPercent / 100);
+  // VAT contained in a VAT-inclusive total: total * rate / (100 + rate).
+  // (121 EUR at 21% -> 21 EUR VAT, 100 EUR base.) Rounded to cents like on
+  // the payment record in the database.
+  const vatAmount = Math.round(((totalInclVat * vatPercent) / (100 + vatPercent)) * 100) / 100;
 
   // Unit price ex VAT, for expenses just the total
   const unitPriceExVat = qty > 0 ? (totalInclVat - vatAmount) / qty : totalInclVat - vatAmount;

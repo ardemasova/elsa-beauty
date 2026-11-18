@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getPayments, createPayment, updatePayment } from "../api/paymentsApi";
 import { fetchClients, fetchAppointments, fetchItems, fetchServices, fetchExpenses, deletePayment } from "../api/api";
 import "./Payments.css";
-import * as XLSX from "xlsx";
+import { exportRowsToExcel } from "../utils/exportExcel";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
@@ -266,10 +266,7 @@ export default function Payments() {
 
     const fileName = `payments_${activeTab}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Payments");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Payments", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   const handleCreate = async (values) => {

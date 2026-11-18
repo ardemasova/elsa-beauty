@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { fetchUsers, createUser, updateUser, deleteUser } from "../api/api";
 import { fetchTenants } from "../api/tenantsApi";
 import { getTokenPayload } from "../auth/session";
-import * as XLSX from "xlsx";
+import { exportRowsToExcel } from "../utils/exportExcel";
 import "./Appointments.css";
 import "./Users.css";
 
@@ -121,10 +121,7 @@ export default function Users() {
 
     const fileName = `users_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Users");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Users", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   return (
