@@ -27,6 +27,7 @@ router.get("/", authenticateToken, requireFeature('appointments'), async (req, r
         a.end_time,
         a.status,
         a.created_at,
+        a.price,
         m.name as master_name,
         c.name as client_name,
         s.name as service_name,
@@ -62,9 +63,9 @@ router.get("/", authenticateToken, requireFeature('appointments'), async (req, r
     // client details only for their own appointments.
     if (role === "master") {
       const me = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [req.user.id]);
-      const myId = me.rows[0]?.id;
+      const mine = new Set(me.rows.map((m) => m.id));
       return res.json(
-        rows.map((r) => (r.master_id === myId ? r : { ...r, client_id: null, client_name: null }))
+        rows.map((r) => (mine.has(r.master_id) ? r : { ...r, client_id: null, client_name: null }))
       );
     }
 
@@ -97,6 +98,7 @@ router.get("/:id", authenticateToken, requireFeature('appointments'), async (req
         a.end_time,
         a.status,
         a.created_at,
+        a.price,
         m.name as master_name,
         c.name as client_name,
         s.name as service_name,
@@ -122,7 +124,7 @@ router.get("/:id", authenticateToken, requireFeature('appointments'), async (req
         return res.status(403).json({ message: "Master profile not found" });
       }
 
-      if (rows[0].master_id !== masterResult.rows[0].id) {
+      if (!masterResult.rows.some((m) => m.id === rows[0].master_id)) {
         return res.status(403).json({ message: "Forbidden" });
       }
     }
@@ -230,7 +232,7 @@ router.post("/", authenticateToken, requireFeature('appointments'), async (req, 
         return res.status(403).json({ message: "Master profile not found" });
       }
 
-      if (master_id !== masterResult.rows[0].id) {
+      if (!masterResult.rows.some((m) => m.id === master_id)) {
         return res.status(403).json({ message: "Can only create appointments for yourself" });
       }
     }
@@ -303,10 +305,10 @@ router.put("/:id", authenticateToken, requireFeature('appointments'), async (req
         return res.status(403).json({ message: "Master profile not found" });
       }
 
-      if (checkAppointment.rows[0].master_id !== masterResult.rows[0].id) {
+      if (!masterResult.rows.some((m) => m.id === checkAppointment.rows[0].master_id)) {
         return res.status(403).json({ message: "Can only edit your own appointments" });
       }
-      if (master_id !== masterResult.rows[0].id) {
+      if (!masterResult.rows.some((m) => m.id === master_id)) {
         return res.status(403).json({ message: "Masters cannot reassign appointments to someone else" });
       }
     }
@@ -415,7 +417,7 @@ router.delete("/:id", authenticateToken, requireFeature('appointments'), async (
         return res.status(403).json({ message: "Master profile not found" });
       }
 
-      if (checkAppointment.rows[0].master_id !== masterResult.rows[0].id) {
+      if (!masterResult.rows.some((m) => m.id === checkAppointment.rows[0].master_id)) {
         return res.status(403).json({ message: "Can only delete your own appointments" });
       }
     }

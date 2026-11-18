@@ -135,3 +135,42 @@ cd ../frontend && npm install && npm run dev
 Автотесты безопасности (на отдельной тестовой базе, не на рабочей):
 создайте `backend/.env.test` по образцу `.env` с `DB_NAME=elsa_test`, затем
 `./test/prepare-db.sh && npm test`.
+
+---
+
+# Обновление: отчёты (этап 3)
+
+Миграция `003` пересчитывает все записи и оплаты каждого салона и на это
+время блокирует таблицы (секунды на салон). Поэтому приложение на время
+обновления останавливается.
+
+```bash
+cd ~/ELSA_BEAUTY/ELSA_BEAUTY_git
+./scripts/backup.sh                      # свежая копия перед обновлением
+git fetch origin && git checkout stage-3/reports && git pull
+docker compose build
+docker compose stop backend
+docker compose run --rm backend npm run migrate
+docker compose up -d
+curl -s localhost:3000/api/health        # {"ok":true}
+```
+
+Строки `WARNING ... have no VAT rate` в выводе миграции: у этих оплат не
+указана ставка НДС, в отчётах они считаются без НДС. Строки
+`... point to a deleted item ...`: оплаты, ссылающиеся на удалённый товар
+или расход, — остаются как были.
+
+## Ежедневные резервные копии
+
+```bash
+chmod +x scripts/backup.sh
+./scripts/backup.sh                      # проверить вручную: "backup OK"
+crontab -e
+# добавить строку (каждый день в 03:15):
+15 3 * * * /home/elsa/ELSA_BEAUTY/ELSA_BEAUTY_git/scripts/backup.sh >> /home/elsa/backups/backup.log 2>&1
+```
+
+Копии хранятся 14 дней в `~/backups`. Чтобы они не пропали вместе с
+сервером, заведите Hetzner Storage Box и впишите в `.env`
+`BACKUP_REMOTE=uXXXXX@uXXXXX.your-storagebox.de:elsa-backups/` (вход по
+SSH-ключу).

@@ -61,15 +61,22 @@ router.get("/branches", handle(async (req, res) => {
   const tenants = (await listAccessibleTenants(req.auth)).filter((t) => t.is_active);
 
   const branches = [];
+  const failed = [];
   for (const t of tenants) {
-    const schema = quoteIdent(t.schema_name);
-    const settings = await metrics.branchSettings(db, schema);
-    const o = await metrics.overview(db, schema, p, { timezone: settings.timezone });
-    branches.push({ tenant_id: t.id, name: t.name, currency: settings.currency, ...o });
+    // One broken branch must not hide the others.
+    try {
+      const schema = quoteIdent(t.schema_name);
+      const settings = await metrics.branchSettings(db, schema);
+      const o = await metrics.overview(db, schema, p, { timezone: settings.timezone });
+      branches.push({ tenant_id: t.id, name: t.name, currency: settings.currency, ...o });
+    } catch (err) {
+      console.error(`Branch report failed for ${t.schema_name}:`, err.message);
+      failed.push({ tenant_id: t.id, name: t.name });
+    }
   }
 
   const sum = (get) => Math.round(branches.reduce((s, b) => s + (get(b) || 0), 0) * 100) / 100;
-  const paidVisits = sum((b) => b.paid_visits);
+  const completedAll = sum((b) => b.services.completed);
   const totals = {
     income: { gross: sum((b) => b.income.gross), net: sum((b) => b.income.net), vat: sum((b) => b.income.vat) },
     expenses: { gross: sum((b) => b.expenses.gross), net: sum((b) => b.expenses.net) },
@@ -80,30 +87,36 @@ router.get("/branches", handle(async (req, res) => {
     },
     margin: { commissions: sum((b) => b.margin.commissions) },
     unpaid: { count: sum((b) => b.unpaid.count), amount: sum((b) => b.unpaid.amount) },
-    avg_ticket: paidVisits ? Math.round((sum((b) => b.income.services) / paidVisits) * 100) / 100 : 0,
+    avg_ticket: completedAll ? Math.round((sum((b) => b.services.rendered_value) / completedAll) * 100) / 100 : 0,
     result: sum((b) => b.result),
   };
   const currencies = [...new Set(branches.map((b) => b.currency))];
+  const oneCurrency = currencies.length <= 1;
   return {
     period: { from: p.from, to: p.to },
-    currency: currencies.length === 1 ? currencies[0] : null, // null: branches use different currencies, totals not meaningful
+    currency: oneCurrency ? currencies[0] || "EUR" : null,
     branches,
-    totals,
+    totals: oneCurrency ? totals : null, // amounts in different currencies cannot be added up
+    failed,
   };
 }));
 
 /** A master's own figures. */
 router.get("/me", handle(async (req, res) => {
   const schema = await resolveTenantSchema(req);
-  const me = await db.query(`SELECT id, name FROM ${schema}.masters WHERE user_id = $1 LIMIT 1`, [req.user.id]);
+  // A user may have more than one master profile (e.g. an old and a new one).
+  const me = await db.query(
+    `SELECT id, name FROM ${schema}.masters WHERE user_id = $1 ORDER BY is_active DESC, created_at DESC`,
+    [req.user.id]
+  );
   if (!me.rows.length) {
     res.status(404);
     return { message: "No master profile for this user in this branch" };
   }
   const p = period(req);
-  const masterId = me.rows[0].id;
-  const o = await metrics.overviewWithComparison(db, schema, p, { masterId });
-  const days = await metrics.byDay(db, schema, p, o.period.timezone, masterId);
+  const masterIds = me.rows.map((r) => r.id);
+  const o = await metrics.overviewWithComparison(db, schema, p, { masterIds });
+  const days = await metrics.byDay(db, schema, p, o.period.timezone, masterIds);
   return { master: me.rows[0], ...o, days };
 }));
 

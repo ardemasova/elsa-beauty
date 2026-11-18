@@ -196,6 +196,8 @@ export default function Payments() {
     if (!appointmentId) return null;
 
     const apt = appointments.find((a) => String(a.id) === String(appointmentId));
+    // the price fixed when the visit was booked, not today's price list
+    if (apt?.price != null) return Number(apt.price);
     if (!apt?.service_id) return null;
 
     const svc = services.find((s) => String(s.id) === String(apt.service_id));

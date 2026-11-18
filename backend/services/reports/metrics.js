@@ -12,8 +12,13 @@
  *    are less than their price.
  *  - Expenses: OUTGOING payments by date paid.
  *  - Commission: price * master's commission % fixed at booking time.
+ *  - Average ticket: value of services done / completed visits (both by
+ *    visit date, so it does not depend on when a visit was paid).
+ *  - Comparison: whole calendar months are compared with the same number of
+ *    whole months before them; any other period with the days just before it.
  *  - Day-off entries (appointments without a client) are not visits and are
  *    excluded everywhere.
+ *  - VAT is split per payment and rounded to cents (as on the receipt).
  *
  * All functions take a query runner `q` (db or a client) and a QUOTED schema.
  */
@@ -57,17 +62,40 @@ function parsePeriod(from, to) {
   return { from: iso(f), to: iso(t), days };
 }
 
-/** The period of the same length right before the given one. */
-function previousPeriod({ from, days }) {
-  const prevTo = addDays(parseDate(from), -1);
+/**
+ * The period to compare with: for whole calendar months (e.g. 1-31 Mar or
+ * 1 Jan-31 Mar) the same number of whole months before; otherwise the same
+ * number of days right before.
+ */
+function previousPeriod({ from, to, days }) {
+  const f = parseDate(from);
+  const t = parseDate(to);
+  const lastOfMonth = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+  if (f.getUTCDate() === 1 && t.getTime() === lastOfMonth(t).getTime()) {
+    const months = (t.getUTCFullYear() - f.getUTCFullYear()) * 12 + (t.getUTCMonth() - f.getUTCMonth()) + 1;
+    const pf = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() - months, 1));
+    const pt = addDays(f, -1);
+    return { from: iso(pf), to: iso(pt), days: Math.round((pt - pf) / 86400000) + 1 };
+  }
+  const prevTo = addDays(f, -1);
   return { from: iso(addDays(prevTo, -(days - 1))), to: iso(prevTo), days };
+}
+
+function validTimezone(tz) {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function branchSettings(q, schema) {
   const { rows } = await q.query(`SELECT currency, timezone FROM ${schema}.settings ORDER BY created_at NULLS LAST LIMIT 1`);
   return {
     currency: rows[0]?.currency?.trim() || "EUR",
-    timezone: rows[0]?.timezone || "Europe/Madrid",
+    // An invalid zone name would make every report fail; fall back safely.
+    timezone: validTimezone(rows[0]?.timezone) ? rows[0].timezone : "Europe/Madrid",
   };
 }
 
@@ -78,12 +106,13 @@ const RANGE = `
 
 /**
  * Headline figures for one branch and period.
- * opts.masterId restricts everything to one master's appointments
- * (income = payments for that master's appointments; no items/expenses).
+ * opts.masterIds restricts everything to these master profiles (one user may
+ * have several): income = payments for their appointments; no items,
+ * expenses or purchase costs are returned.
  */
 async function overview(q, schema, period, opts = {}) {
   const tz = opts.timezone || (await branchSettings(q, schema)).timezone;
-  const m = opts.masterId || null;
+  const m = opts.masterIds?.length ? opts.masterIds : null;
   const params = [period.from, period.to, tz, m];
 
   const { rows } = await q.query(
@@ -93,19 +122,22 @@ async function overview(q, schema, period, opts = {}) {
          FROM ${schema}.payments p
          LEFT JOIN ${schema}.appointments a ON a.id = p.appointment_id, r
         WHERE p.paid_at >= r.s AND p.paid_at < r.e
-          AND ($4::uuid IS NULL OR a.master_id = $4)
+          AND ($4::uuid[] IS NULL OR a.master_id = ANY($4::uuid[]))
      ),
-     ap AS (
+     ap AS MATERIALIZED (
        SELECT a.* FROM ${schema}.appointments a, r
         WHERE a.start_time >= r.s AND a.start_time < r.e
           AND a.client_id IS NOT NULL
-          AND ($4::uuid IS NULL OR a.master_id = $4)
+          AND ($4::uuid[] IS NULL OR a.master_id = ANY($4::uuid[]))
      ),
-     paid_per_appt AS (
-       SELECT p.appointment_id, sum(p.amount) AS paid
-         FROM ${schema}.payments p
-        WHERE p.type = 'incoming' AND p.appointment_id IN (SELECT id FROM ap WHERE status = 'completed')
-        GROUP BY p.appointment_id
+     done AS MATERIALIZED (
+       -- completed visits with everything paid for them (any date)
+       SELECT ap.id, ap.price,
+              COALESCE(sum(p.amount) FILTER (WHERE p.type = 'incoming'), 0) AS paid
+         FROM ap
+         LEFT JOIN ${schema}.payments p ON p.appointment_id = ap.id
+        WHERE ap.status = 'completed'
+        GROUP BY ap.id, ap.price
      )
      SELECT
        (SELECT COALESCE(sum(amount), 0)      FROM pay WHERE type = 'incoming') AS income_gross,
@@ -137,26 +169,26 @@ async function overview(q, schema, period, opts = {}) {
        (SELECT COALESCE(sum(price), 0) FROM ap WHERE status = 'planned')   AS planned_value,
        (SELECT count(DISTINCT client_id) FROM ap WHERE status = 'completed') AS unique_clients,
 
-       (SELECT count(*) FROM ap LEFT JOIN paid_per_appt pp ON pp.appointment_id = ap.id
-         WHERE ap.status = 'completed' AND ap.price - COALESCE(pp.paid, 0) > 0.005) AS unpaid_count,
-       (SELECT COALESCE(sum(ap.price - COALESCE(pp.paid, 0)), 0) FROM ap LEFT JOIN paid_per_appt pp ON pp.appointment_id = ap.id
-         WHERE ap.status = 'completed' AND ap.price - COALESCE(pp.paid, 0) > 0.005) AS unpaid_amount`,
+       (SELECT count(*) FROM done WHERE price - paid > 0.005) AS unpaid_count,
+       (SELECT COALESCE(sum(price - paid), 0) FROM done WHERE price - paid > 0.005) AS unpaid_amount,
+       (SELECT COALESCE(sum(amount), 0) FROM pay WHERE type = 'incoming' AND vat_percent IS NULL) AS income_no_vat_rate`,
     params
   );
   const r = rows[0];
 
-  const incomeServices = n(r.income_services);
   const paidVisits = i(r.paid_visits);
   const commissions = n(r.commissions);
+  const completed = i(r.completed);
   const result = {
     income: {
       gross: n(r.income_gross),
       net: n(r.income_net),
       vat: n(r.income_vat),
       payments: i(r.income_count),
-      services: incomeServices,
+      services: n(r.income_services),
       items: n(r.income_items),
       other: n(r.income_other),
+      without_vat_rate: n(r.income_no_vat_rate), // counted as 0% VAT
     },
     services: {
       completed: i(r.completed),
@@ -173,12 +205,16 @@ async function overview(q, schema, period, opts = {}) {
       items: n(r.items_margin),
       commissions,
     },
-    avg_ticket: paidVisits ? n(incomeServices / paidVisits) : 0,
+    avg_ticket: completed ? n(Number(r.rendered_value) / completed) : 0,
     paid_visits: paidVisits,
     unpaid: { count: i(r.unpaid_count), amount: n(r.unpaid_amount) },
   };
 
-  if (!m) {
+  if (m) {
+    // Masters must not be able to work out purchase costs.
+    delete result.margin.services;
+    delete result.margin.items;
+  } else {
     result.expenses = {
       gross: n(r.expenses_gross),
       net: n(r.expenses_net),
@@ -283,7 +319,7 @@ async function byMaster(q, schema, period, tz) {
     rendered_value: n(r.rendered_value),
     income_gross: n(r.income_gross),
     income_net: n(r.income_net),
-    avg_ticket: i(r.paid_visits) ? n(r.income_gross / r.paid_visits) : 0,
+    avg_ticket: i(r.completed) ? n(r.rendered_value / r.completed) : 0,
     margin: n(r.margin),
     commission: n(r.commission),
     revenue_per_hour: Number(r.hours) > 0 ? n(r.rendered_value / r.hours) : 0,
@@ -389,7 +425,8 @@ async function byExpense(q, schema, period, tz) {
 }
 
 /** One row per calendar day of the period (days without activity included). */
-async function byDay(q, schema, period, tz, masterId = null) {
+async function byDay(q, schema, period, tz, masterIds = null) {
+  const ids = masterIds?.length ? masterIds : null;
   const { rows } = await q.query(
     `WITH ${RANGE},
      days AS (SELECT generate_series($1::date, $2::date, interval '1 day')::date AS day),
@@ -401,7 +438,7 @@ async function byDay(q, schema, period, tz, masterId = null) {
          FROM ${schema}.payments p
          LEFT JOIN ${schema}.appointments a ON a.id = p.appointment_id, r
         WHERE p.paid_at >= r.s AND p.paid_at < r.e
-          AND ($4::uuid IS NULL OR a.master_id = $4)
+          AND ($4::uuid[] IS NULL OR a.master_id = ANY($4::uuid[]))
         GROUP BY 1
      ),
      ap AS (
@@ -411,7 +448,7 @@ async function byDay(q, schema, period, tz, masterId = null) {
               count(*) FILTER (WHERE status = 'cancelled') AS cancelled
          FROM ${schema}.appointments a, r
         WHERE a.start_time >= r.s AND a.start_time < r.e AND a.client_id IS NOT NULL
-          AND ($4::uuid IS NULL OR a.master_id = $4)
+          AND ($4::uuid[] IS NULL OR a.master_id = ANY($4::uuid[]))
         GROUP BY 1
      )
      SELECT to_char(days.day, 'YYYY-MM-DD') AS day,
@@ -423,13 +460,13 @@ async function byDay(q, schema, period, tz, masterId = null) {
        LEFT JOIN pay ON pay.day = days.day
        LEFT JOIN ap ON ap.day = days.day
       ORDER BY days.day`,
-    [period.from, period.to, tz, masterId]
+    [period.from, period.to, tz, ids]
   );
   return rows.map((r) => ({
     day: r.day,
     income_gross: n(r.income_gross),
     income_net: n(r.income_net),
-    ...(masterId ? {} : { expenses_net: n(r.expenses_net) }),
+    ...(ids ? {} : { expenses_net: n(r.expenses_net) }),
     completed: i(r.completed),
     rendered_value: n(r.rendered_value),
     cancelled: i(r.cancelled),
@@ -453,12 +490,13 @@ async function receivables(q, schema, period, tz) {
      SELECT ap.id AS appointment_id, to_char(ap.start_time AT TIME ZONE $3, 'YYYY-MM-DD HH24:MI') AS date,
             c.id AS client_id, c.name AS client_name, c.phone AS client_phone,
             m.name AS master_name, s.name AS service_name,
-            ap.price, COALESCE(paid.paid, 0) AS paid, ap.price - COALESCE(paid.paid, 0) AS due
+            ap.price, COALESCE(paid.paid, 0) AS paid, ap.price - COALESCE(paid.paid, 0) AS due,
+            count(*) OVER () AS total_count, sum(ap.price - COALESCE(paid.paid, 0)) OVER () AS total_due
        FROM ap
        LEFT JOIN paid ON paid.appointment_id = ap.id
-       JOIN ${schema}.clients c ON c.id = ap.client_id
-       JOIN ${schema}.masters m ON m.id = ap.master_id
-       JOIN ${schema}.services s ON s.id = ap.service_id
+       LEFT JOIN ${schema}.clients c ON c.id = ap.client_id
+       LEFT JOIN ${schema}.masters m ON m.id = ap.master_id
+       LEFT JOIN ${schema}.services s ON s.id = ap.service_id
       WHERE ap.price - COALESCE(paid.paid, 0) > 0.005
       ORDER BY ap.start_time
       LIMIT 1000`,
@@ -476,7 +514,13 @@ async function receivables(q, schema, period, tz) {
     paid: n(r.paid),
     due: n(r.due),
   }));
-  return { total: n(items.reduce((s, x) => s + x.due, 0)), count: items.length, items };
+  // Totals cover every unpaid visit, even beyond the first 1000 listed.
+  return {
+    total: n(rows[0]?.total_due ?? 0),
+    count: i(rows[0]?.total_count ?? 0),
+    truncated: i(rows[0]?.total_count ?? 0) > items.length,
+    items,
+  };
 }
 
 const BREAKDOWNS = { master: byMaster, service: byService, item: byItem, expense: byExpense, day: byDay };

@@ -36,3 +36,11 @@ INSERT INTO public.users (id,tenant_id,email,password_hash,role) VALUES
  ('aaaaaaaa-0000-0000-0000-000000000007','11111111-1111-1111-1111-111111111111','shared@demo.com', crypt('password123', gen_salt('bf',10)),'master');
 -- (4) legacy payment method the app no longer accepts
 INSERT INTO salon_demo.payments (amount,method,type,partner_id) VALUES (7,'transfer','incoming','c0000000-0000-0000-0000-000000000001');
+-- (5) legacy rows the report migration must survive
+INSERT INTO demo_hospi.services (id,name,duration,price,cost) VALUES ('5e000000-0000-0000-0000-000000000009','Old',30,20,5);
+INSERT INTO demo_hospi.masters (id,user_id,name,commission) VALUES ('ae000000-0000-0000-0000-000000000009','aaaaaaaa-0000-0000-0000-000000000004','Old master',10);
+INSERT INTO demo_hospi.appointments (master_id,client_id,service_id,start_time,end_time,status) VALUES
+ ('ae000000-0000-0000-0000-000000000009','c0000000-0000-0000-0000-000000000009','5e000000-0000-0000-0000-000000000009','2025-01-01 10:00+00','2025-01-01 10:00+00','completed');
+INSERT INTO demo_hospi.payments (amount,method,partner_id,type) VALUES (15,'cash','c0000000-0000-0000-0000-000000000009',NULL);
+-- legacy item sale paid by 'transfer' (method the app no longer accepts)
+INSERT INTO salon_demo.payments (amount,method,type,partner_id,item_id) VALUES (10,'transfer','incoming','c0000000-0000-0000-0000-000000000001',1);

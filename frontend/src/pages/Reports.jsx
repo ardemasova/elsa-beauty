@@ -20,7 +20,7 @@ const TABS = {
       { key: "hours", label: "Hours", type: "hours" },
       { key: "income_gross", label: "Money received", type: "money" },
       { key: "rendered_value", label: "Services done", type: "money" },
-      { key: "avg_ticket", label: "Avg. ticket", type: "money", total: () => null },
+      { key: "avg_ticket", label: "Avg. ticket", type: "money", total: (r) => ratio(sumOf(r, "rendered_value"), sumOf(r, "completed")) },
       { key: "revenue_per_hour", label: "Per hour", type: "money", total: (r) => ratio(sumOf(r, "rendered_value"), sumOf(r, "hours")) },
       { key: "commission", label: "Commission", type: "money" },
       { key: "cancelled", label: "Cancelled", type: "int" },
@@ -97,8 +97,7 @@ const TABS = {
           commissions: b.margin.commissions,
           result: b.result,
           completed: b.services.completed,
-          income_services: b.income.services,
-          paid_visits: b.paid_visits,
+          rendered_value: b.services.rendered_value,
           avg_ticket: b.avg_ticket,
           unpaid: b.unpaid.amount,
         }))
@@ -111,7 +110,7 @@ const TABS = {
       { key: "commissions", label: "Commissions", type: "money" },
       { key: "result", label: "Result", type: "money" },
       { key: "completed", label: "Visits", type: "int" },
-      { key: "avg_ticket", label: "Avg. ticket", type: "money", total: (r) => ratio(sumOf(r, "income_services"), sumOf(r, "paid_visits")) },
+      { key: "avg_ticket", label: "Avg. ticket", type: "money", total: (r) => ratio(sumOf(r, "rendered_value"), sumOf(r, "completed")) },
       { key: "unpaid", label: "Unpaid", type: "money" },
     ],
   },
@@ -234,8 +233,14 @@ function AdminReports({ session }) {
             items={[
               { label: "Visits completed", value: int(c.services.completed), delta: o.change.completed, note: `${hours(c.services.hours)} of work` },
               { label: "Services done (value)", value: money(c.services.rendered_value, currency), delta: o.change.rendered_value },
-              { label: "Average ticket", value: money(c.avg_ticket, currency), delta: o.change.avg_ticket, note: plural(c.paid_visits, "paid visit") },
-              { label: "VAT collected", value: money(c.income.vat, currency), note: `products: ${money(c.income.items, currency)}` },
+              { label: "Average ticket", value: money(c.avg_ticket, currency), delta: o.change.avg_ticket, note: "services done per visit" },
+              {
+                label: "VAT collected",
+                value: money(c.income.vat, currency),
+                note: c.income.without_vat_rate
+                  ? `${money(c.income.without_vat_rate, currency)} of payments have no VAT rate`
+                  : `products sold: ${money(c.income.items, currency)}`,
+              },
               {
                 label: "Unpaid visits",
                 value: money(c.unpaid.amount, currency),

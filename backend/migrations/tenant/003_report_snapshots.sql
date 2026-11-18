@@ -12,6 +12,25 @@
 --
 -- Existing rows are filled from today's prices: the best information there is.
 
+-- 0. Legacy rows may break rules that were added later as NOT VALID (an
+--    appointment ending when it starts, an old payment method such as
+--    'transfer'). PostgreSQL re-checks such rules when a row is updated, so
+--    the rules are lifted while the snapshots below are filled in and put back
+--    (again NOT VALID) at the end. New and edited rows are still checked.
+ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_time_order_check;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_method_check;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_type_check;
+
+-- Payments without a direction were invisible in every total: derive it from
+-- the partner (customer -> incoming, vendor -> outgoing).
+UPDATE payments p
+   SET type = CASE WHEN c.type = 'vendor' THEN 'outgoing' ELSE 'incoming' END
+  FROM clients c
+ WHERE c.id = p.partner_id AND p.type IS NULL;
+UPDATE payments SET type = 'incoming' WHERE type IS NULL;
+ALTER TABLE payments ALTER COLUMN type SET DEFAULT 'incoming';
+ALTER TABLE payments ALTER COLUMN type SET NOT NULL;
+
 -- 1. Appointment snapshots -----------------------------------------------------
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS price numeric(10,2);
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cost numeric(10,2);
@@ -78,6 +97,20 @@ CREATE TRIGGER payments_snapshot
   BEFORE INSERT OR UPDATE ON payments
   FOR EACH ROW EXECUTE FUNCTION payment_snapshot();
 
--- 4. Indexes for the report queries --------------------------------------------
+-- 4. Rules lifted in step 0 are back (old rows are not re-checked) -----------
+ALTER TABLE appointments ADD CONSTRAINT appointments_time_order_check CHECK (end_time > start_time) NOT VALID;
+ALTER TABLE payments ADD CONSTRAINT payments_method_check CHECK (method IN ('Card', 'Cash')) NOT VALID;
+ALTER TABLE payments ADD CONSTRAINT payments_type_check CHECK (type IN ('incoming', 'outgoing')) NOT VALID;
+
+DO $$
+DECLARE n integer;
+BEGIN
+  SELECT count(*) INTO n FROM payments WHERE vat_percent IS NULL;
+  IF n > 0 THEN
+    RAISE WARNING 'Schema %: % payment(s) have no VAT rate and are counted as 0%% VAT in reports.', current_schema(), n;
+  END IF;
+END $$;
+
+-- 5. Indexes for the report queries --------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_payments_type_paid_at ON payments (type, paid_at);
 CREATE INDEX IF NOT EXISTS idx_appointments_status_start ON appointments (status, start_time);

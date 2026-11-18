@@ -144,7 +144,7 @@ test("overview for March matches the hand calculation", async () => {
   assert.equal(r.data.period.currency, "EUR");
 
   // income: 50 + 100 + 48.40 + 24.20 (the 1 Mar 00:30 sale), NOT the 1 Apr payment
-  assert.deepEqual(c.income, { gross: 222.6, net: 183.96, vat: 38.64, payments: 4, services: 150, items: 72.6, other: 0 });
+  assert.deepEqual(c.income, { gross: 222.6, net: 183.96, vat: 38.64, payments: 4, services: 150, items: 72.6, other: 0, without_vat_rate: 0 });
   assert.deepEqual(c.expenses, { gross: 1210, net: 1000, vat: 210, payments: 1 });
 
   // visits: a1 + a2 completed (a4 is in April, a5 is a day off)
@@ -159,12 +159,13 @@ test("overview for March matches the hand calculation", async () => {
   assert.equal(c.margin.services, 140); // (50-10) + (121-21)
   assert.equal(c.margin.items, 36); // (40.00 - 2*8) + (20.00 - 8)
   assert.equal(c.margin.commissions, 68.4); // Ana 40% (booked) of 171
-  assert.equal(c.avg_ticket, 75); // 150 service income / 2 paid visits
+  assert.equal(c.avg_ticket, 85.5); // 171 services done / 2 completed visits
   assert.deepEqual(c.unpaid, { count: 1, amount: 21 }); // a2: 121 - 100
   assert.equal(c.result, -884.44); // 183.96 - 1000 - 68.40
 
-  assert.deepEqual(r.data.previous_period, { from: "2026-01-29", to: "2026-02-28" });
-  assert.equal(r.data.previous.income.gross, 0);
+  // a whole month is compared with the whole month before it
+  assert.deepEqual(r.data.previous_period, { from: "2026-02-01", to: "2026-02-28" });
+  assert.equal(r.data.previous.income.gross, 0); // the 28 Feb 23:30 UTC sale belongs to March
   assert.equal(r.data.change.income_gross, null); // nothing to compare with
 });
 
@@ -174,10 +175,9 @@ test("April gets the visit and payment that happened after midnight in Madrid", 
   assert.equal(c.income.gross, 121);
   assert.equal(c.services.completed, 1);
   assert.equal(c.margin.commissions, 36.3); // Bea 30%
-  // previous period of equal length = 2..31 Mar (30 days): 222.60 - 24.20 (1 Mar sale) = 198.40
-  assert.deepEqual(r.data.previous_period, { from: "2026-03-02", to: "2026-03-31" });
-  assert.equal(r.data.previous.income.gross, 198.4);
-  assert.equal(r.data.change.income_gross, -39); // (121 - 198.40) / 198.40
+  assert.deepEqual(r.data.previous_period, { from: "2026-03-01", to: "2026-03-31" });
+  assert.equal(r.data.previous.income.gross, 222.6);
+  assert.equal(r.data.change.income_gross, -45.6); // (121 - 222.60) / 222.60
 });
 
 test("breakdown by master", async () => {
@@ -186,7 +186,7 @@ test("breakdown by master", async () => {
   const bea = r.data.rows.find((x) => x.name === "Bea");
   assert.deepEqual(
     { completed: ana.completed, rendered: ana.rendered_value, gross: ana.income_gross, net: ana.income_net, commission: ana.commission, hours: ana.hours, perHour: ana.revenue_per_hour, ticket: ana.avg_ticket },
-    { completed: 2, rendered: 171, gross: 150, net: 123.96, commission: 68.4, hours: 3, perHour: 57, ticket: 75 }
+    { completed: 2, rendered: 171, gross: 150, net: 123.96, commission: 68.4, hours: 3, perHour: 57, ticket: 85.5 }
   );
   assert.deepEqual({ completed: bea.completed, cancelled: bea.cancelled, gross: bea.income_gross }, { completed: 0, cancelled: 1, gross: 0 });
 });
@@ -235,6 +235,8 @@ test("a master sees only their own figures", async () => {
   assert.equal(me.data.current.margin.commissions, 36.3);
   assert.equal(me.data.current.expenses, undefined); // salon costs are not shown to masters
   assert.equal(me.data.current.result, undefined);
+  assert.equal(me.data.current.margin.services, undefined); // would reveal purchase cost
+  assert.equal(me.data.current.margin.items, undefined);
   assert.equal(me.data.days.length, 30);
 
   const march = await api("GET", `/api/analytics/me?${MARCH}`, { token: masterToken });
@@ -263,4 +265,58 @@ test("dashboard uses the same calculation", async () => {
   const r = await api("GET", "/api/dashboard/stats?period=month", { token: ownerToken });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.ok("revenue_net" in r.data && "unpaid" in r.data);
+});
+
+// --- findings of the independent review --------------------------------------
+
+test("parallel payments by a master cannot exceed what is due", async () => {
+  const { id } = await one(
+    `INSERT INTO ${S}.appointments (master_id, client_id, service_id, start_time, end_time, status)
+     VALUES ($1, $2, $3, '2026-06-01 10:00+02', '2026-06-01 11:00+02', 'completed') RETURNING id`,
+    [ids.bea, ids.c2, ids.cut]
+  ); // booked at today's 60
+  const body = { partner_id: ids.c2, appointment_id: id, amount: 60, method: "Cash", type: "incoming", vat_percent: 21 };
+  const results = await Promise.all(Array.from({ length: 5 }, () => api("POST", "/api/payments", { token: masterToken, body })));
+  assert.equal(results.filter((r) => r.status === 201).length, 1, results.map((r) => r.status).join(","));
+  const paid = await one(`SELECT sum(amount) AS s FROM ${S}.payments WHERE appointment_id = $1`, [id]);
+  assert.equal(Number(paid.s), 60);
+});
+
+test("a master with two profiles sees and pays for both", async () => {
+  const bea = await one(`SELECT user_id FROM ${S}.masters WHERE id = $1`, [ids.bea]);
+  const old = (await one(`INSERT INTO ${S}.masters (name, commission, user_id, is_active, created_at) VALUES ('Bea (old)', 30, $1, false, '2025-01-01') RETURNING id`, [bea.user_id])).id;
+  const { id } = await one(
+    `INSERT INTO ${S}.appointments (master_id, client_id, service_id, start_time, end_time, status)
+     VALUES ($1, $2, $3, '2026-04-10 10:00+02', '2026-04-10 11:00+02', 'completed') RETURNING id`,
+    [old, ids.c1, ids.cut]
+  );
+  const me = await api("GET", "/api/analytics/me?from=2026-04-01&to=2026-04-30", { token: masterToken });
+  assert.equal(me.data.master.name, "Bea"); // the active profile is shown
+  assert.equal(me.data.current.services.completed, 2); // a4 + the old profile's visit
+  const pay = await api("POST", "/api/payments", {
+    token: masterToken,
+    body: { partner_id: ids.c1, appointment_id: id, amount: 60, method: "Card", type: "incoming", vat_percent: 21 },
+  });
+  assert.equal(pay.status, 201, JSON.stringify(pay.data));
+});
+
+test("appointments list returns the booked price (used to pre-fill payments)", async () => {
+  const r = await api("GET", "/api/appointments?start_date=2026-03-10&end_date=2026-03-10", { token: ownerToken });
+  assert.equal(Number(r.data.find((a) => a.id === ids.a1).price), 50);
+});
+
+test("an invalid time zone in settings falls back instead of breaking reports", async () => {
+  await db.query(`UPDATE ${S}.settings SET timezone = 'Madrid'`);
+  try {
+    const r = await api("GET", `/api/analytics/overview?${MARCH}`, { token: ownerToken });
+    assert.equal(r.status, 200);
+    assert.equal(r.data.period.timezone, "Europe/Madrid");
+  } finally {
+    await db.query(`UPDATE ${S}.settings SET timezone = 'Europe/Madrid'`);
+  }
+});
+
+test("legacy payments without a type were given one by the migration", async () => {
+  const r = await one(`SELECT count(*)::int AS n FROM demo_hospi.payments WHERE type IS NULL`);
+  assert.equal(r.n, 0);
 });
