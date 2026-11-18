@@ -57,6 +57,7 @@ async function cloneData(client, fromSchema, toSchema, ownerUserId, tables = CLO
          JOIN information_schema.columns s
            ON s.table_schema = $2 AND s.table_name = c.table_name AND s.column_name = c.column_name
         WHERE c.table_schema = $1 AND c.table_name = $3
+          AND c.is_generated = 'NEVER' -- computed columns (e.g. payments.amount_net) fill themselves
         ORDER BY c.ordinal_position`,
       [toSchema, fromSchema, table]
     );

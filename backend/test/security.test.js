@@ -344,7 +344,8 @@ test("legacy data: case-duplicate emails and orphaned payments did not block the
   const { rows } = await db.query(`SELECT email, is_active FROM public.users WHERE email LIKE 'case%' ORDER BY email`);
   assert.deepEqual(rows.map((r) => r.email), ["case+dup2@demo.com", "case@demo.com"]);
   const done = await db.query(`SELECT count(*)::int AS n FROM demo_hospi.schema_migrations`);
-  assert.equal(done.rows[0].n, 2);
+  const expected = require("fs").readdirSync(path.join(__dirname, "..", "migrations", "tenant")).filter((f) => f.endsWith(".sql")).length;
+  assert.equal(done.rows[0].n, expected);
 });
 
 test("admin cannot take over a master who also works in another branch", async () => {

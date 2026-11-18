@@ -205,6 +205,19 @@ router.post("/", authenticateToken, requireFeature('payments'), async (req, res)
         // A master only records what the appointment's client paid.
         if (type !== "incoming" || appointmentResult.rows[0].client_id !== partner_id)
           return res.status(403).json({ message: "Masters can only record the client's payment for their appointment" });
+        // ...and not more than the appointment's price in total.
+        const due = await db.query(
+          `SELECT a.price - COALESCE((SELECT sum(amount) FROM ${schema}.payments
+                                       WHERE appointment_id = a.id AND type = 'incoming'), 0) AS due
+             FROM ${schema}.appointments a WHERE a.id = $1`,
+          [appointment_id]
+        );
+        const remaining = Number(due.rows[0]?.due ?? 0);
+        if (parseFloat(amount) - remaining > 0.005) {
+          return res.status(400).json({
+            message: `Amount exceeds what is due for this appointment (${remaining.toFixed(2)}). Ask an admin for anything extra.`,
+          });
+        }
       }
     }
 

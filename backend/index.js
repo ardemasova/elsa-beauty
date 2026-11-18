@@ -30,6 +30,7 @@ const appointmentsRoutes = require("./routes/appointments");
 const dashboardRoutes = require("./routes/dashboard");
 const paymentsRouter = require("./routes/payments");
 const reportsRouter = require("./routes/reports");
+const analyticsRouter = require("./routes/analytics");
 const settingsRouter = require("./routes/settings");
 const tenantsRouter = require("./routes/tenants");
 const uploadsRoutes = require("./routes/uploads");
@@ -131,7 +132,8 @@ app.use("/api/clients", clientsRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/payments", paymentsRouter);
-app.use("/api/reports", reportsRouter);
+app.use("/api/reports", reportsRouter); // legacy, replaced by /api/analytics in the new Reports screen
+app.use("/api/analytics", analyticsRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/tenants", tenantsRouter);
 app.use("/api/vat", vatRoutes);
