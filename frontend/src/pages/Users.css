@@ -16,7 +16,7 @@
   white-space: nowrap;
   color: var(--nav-bg);
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.1;
 }
 
@@ -71,7 +71,7 @@
 
 /* keep email normal */
 .users-email {
-  color: #000;
+  color: var(--text);
   font-weight: 400;
 }
 

@@ -35,7 +35,7 @@
 
 .partners-header h1 {
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--nav-bg);
   margin: 0;
 }
@@ -59,7 +59,7 @@
   border-radius: 8px;
   background: var(--nav-accent-2);
   color: #fff;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -83,7 +83,7 @@
   border-radius: 8px;
   background: #fff;
   color: var(--nav-bg);
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -108,7 +108,7 @@
   border: none;
   padding: 10px 16px;
   border-radius: 8px;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -152,7 +152,7 @@
   border-radius: 8px;
   border-left: 4px solid #dc2626;
   margin: 16px 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* =========================
@@ -172,7 +172,7 @@
   border: none;
   border-bottom: 3px solid transparent;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--muted);
   cursor: pointer;
   transition: all 0.2s;
@@ -219,8 +219,8 @@
 
 .modal-content h2 {
   font-size: 22px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 20px 0;
 }
 
@@ -239,8 +239,8 @@ fieldset {
 
 legend {
   padding: 0 8px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -260,7 +260,7 @@ legend {
 
 .form-group label {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: #374151;
 }
 
@@ -307,15 +307,15 @@ legend {
 
 .confirm-dialog h3 {
   font-size: 20px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 8px 0;
 }
 
 .confirm-dialog p {
   color: var(--muted);
   margin: 0 0 20px 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .confirm-actions {
@@ -350,10 +350,10 @@ legend {
   padding: 16px;
   text-align: left;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .partners-table tbody tr {
@@ -372,8 +372,8 @@ legend {
 }
 
 .cell-name {
-  font-weight: 800;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .cell-type {
@@ -383,7 +383,7 @@ legend {
 .cell-date {
   color: #9ca3af;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .cell-actions {
@@ -397,7 +397,7 @@ legend {
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .badge-blue {
@@ -415,7 +415,7 @@ legend {
   text-align: center;
   padding: 60px 40px;
   color: #9ca3af;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .empty-state p {
@@ -494,7 +494,7 @@ div.avatar.avatar--empty {
   background: #f3f4f6;
   border: 2px dashed rgba(0, 80, 103, 0.2);
   color: #9ca3af;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 12px;
   display: flex;
   align-items: center;

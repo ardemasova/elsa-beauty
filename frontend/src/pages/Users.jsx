@@ -180,7 +180,7 @@ export default function Users() {
                         padding: "6px 12px",
                         borderRadius: "999px",
                         fontSize: "12px",
-                        fontWeight: 800,
+                        fontWeight: 600,
                         backgroundColor: u.role === "owner" ? "#ede9fe" : u.role === "admin" ? "#fecaca" : "#dbeafe",
                         color: u.role === "owner" ? "#5b21b6" : u.role === "admin" ? "#991b1b" : "#1e40af",
                         textTransform: "capitalize",

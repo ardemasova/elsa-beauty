@@ -27,8 +27,8 @@
 
 .control-panel h2 {
   font-size: 22px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 18px 0;
 }
 
@@ -59,8 +59,8 @@
 
 .date-field label {
   font-size: 12px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -87,7 +87,7 @@
   font-size: 20px;
   color: #9ca3af;
   margin-bottom: 10px;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 /* Generate button (primary) */
@@ -108,7 +108,7 @@
   border-radius: 12px;
 
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 600;
 
   cursor: pointer;
   transition: all 0.2s;
@@ -156,7 +156,7 @@
   display: flex;
   gap: 16px;
   color: #991b1b;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .error-icon {
@@ -167,13 +167,13 @@
 .error-message strong {
   display: block;
   margin-bottom: 4px;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .error-message p {
   margin: 0;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* AI Result (match other pages card style + neutral backgrounds) */
@@ -207,8 +207,8 @@
 
 .headline {
   font-size: 22px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0;
   display: flex;
   align-items: center;
@@ -230,8 +230,8 @@
 .warnings-section h3,
 .recommendations-section h3 {
   font-size: 16px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 12px 0;
   display: flex;
   align-items: center;
@@ -283,7 +283,7 @@
   height: 28px;
   color: #fff;
   border-radius: 999px;
-  font-weight: 900;
+  font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -307,10 +307,10 @@
 .warning-item p,
 .recommendation-item p {
   margin: 0;
-  color: #0f172a;
+  color: var(--text);
   font-size: 14px;
   line-height: 1.6;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Period Info */
@@ -323,12 +323,12 @@
   font-size: 14px;
   margin-top: 18px;
   border: 1px solid var(--border);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .period-info strong {
-  color: #0f172a;
-  font-weight: 900;
+  color: var(--text);
+  font-weight: 600;
 }
 
 /* Empty State */
@@ -347,15 +347,15 @@
 
 .empty-state p {
   font-size: 16px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 6px 0;
 }
 
 .empty-subtitle {
   font-size: 14px;
   color: #9ca3af;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Responsive: allow wrapping when needed */

@@ -1,4 +1,5 @@
 const express = require("express");
+const metrics = require("../services/reports/metrics");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
@@ -42,13 +43,18 @@ router.get("/", authenticateToken, requireFeature('appointments'), async (req, r
 
     const params = [];
 
+    // Dates are calendar days in the branch's time zone, not the server's.
+    const { timezone } = await metrics.branchSettings(db, schema);
+    const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
     if (start_date) {
-      params.push(start_date);
-      query += ` AND a.start_time::date >= $${params.length}`;
+      if (!DAY_RE.test(start_date)) return res.status(400).json({ message: "start_date must be YYYY-MM-DD" });
+      params.push(start_date, timezone);
+      query += ` AND a.start_time >= ($${params.length - 1}::date)::timestamp AT TIME ZONE $${params.length}`;
     }
     if (end_date) {
-      params.push(end_date);
-      query += ` AND a.start_time::date <= $${params.length}`;
+      if (!DAY_RE.test(end_date)) return res.status(400).json({ message: "end_date must be YYYY-MM-DD" });
+      params.push(end_date, timezone);
+      query += ` AND a.start_time < ($${params.length - 1}::date + 1)::timestamp AT TIME ZONE $${params.length}`;
     }
 
     if (!["admin", "master"].includes(role)) {

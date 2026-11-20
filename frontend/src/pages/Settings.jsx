@@ -54,6 +54,10 @@ export default function Settings() {
     company_phone: "",
     company_website: "",
     invoice_prefix: "",
+    work_start: "10:00",
+    work_end: "20:00",
+    work_days: [1, 2, 3, 4, 5, 6],
+    revenue_goal_month: "",
   });
 
   // Branches
@@ -122,6 +126,10 @@ export default function Settings() {
         company_phone: data.company_phone || "",
         company_website: data.company_website || "",
         invoice_prefix: data.invoice_prefix || "",
+        work_start: data.work_start,
+        work_end: data.work_end,
+        work_days: data.work_days,
+        revenue_goal_month: data.revenue_goal_month === null ? "" : String(data.revenue_goal_month),
       });
       setError("");
     } catch (err) {
@@ -392,6 +400,62 @@ export default function Settings() {
                 </section>
 
                 <section className="settings-section">
+                  <h2>Opening hours and goal</h2>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="work_start">Opens at</label>
+                      <input id="work_start" type="time" name="work_start" value={formData.work_start} onChange={handleInputChange} disabled={saving} />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="work_end">Closes at</label>
+                      <input id="work_end" type="time" name="work_end" value={formData.work_end} onChange={handleInputChange} disabled={saving} />
+                    </div>
+                  </div>
+
+                  <fieldset className="form-group settings-days">
+                    <legend>Working days</legend>
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, k) => (
+                      <label key={label} className="settings-day">
+                        <input
+                          type="checkbox"
+                          checked={formData.work_days.includes(k + 1)}
+                          disabled={saving}
+                          onChange={(e) =>
+                            setFormData((f) => ({
+                              ...f,
+                              work_days: e.target.checked
+                                ? [...f.work_days, k + 1].sort()
+                                : f.work_days.filter((d) => d !== k + 1),
+                            }))
+                          }
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </fieldset>
+
+                  <div className="form-group">
+                    <label htmlFor="revenue_goal_month">Revenue goal per month, € incl. VAT</label>
+                    <input
+                      id="revenue_goal_month"
+                      type="number"
+                      min="0"
+                      step="100"
+                      name="revenue_goal_month"
+                      value={formData.revenue_goal_month}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 40000"
+                      disabled={saving}
+                    />
+                    <small className="muted">
+                      The dashboard compares money received with this goal, spread over working days.
+                      Leave empty to compare with the same dates last year.
+                    </small>
+                  </div>
+                </section>
+
+                <section className="settings-section">
                   <h2>Invoice Address</h2>
 
                   <div className="form-group">
@@ -544,7 +608,7 @@ export default function Settings() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="4" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 700 }}>
+                          <td colSpan="4" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 600 }}>
                             No branches yet
                           </td>
                         </tr>
@@ -666,7 +730,7 @@ export default function Settings() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="3" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 700 }}>
+                          <td colSpan="3" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 600 }}>
                             No VAT rates yet
                           </td>
                         </tr>
@@ -815,7 +879,7 @@ function VatModal({ title, initialValues, loading, onClose, onSubmit, submitLabe
               <option value="N">No</option>
               <option value="Y">Yes</option>
             </select>
-            <p style={{ marginTop: 8, color: "#6b7280", fontWeight: 700, fontSize: 13 }}>
+            <p style={{ marginTop: 8, color: "#6b7280", fontWeight: 600, fontSize: 13 }}>
               Only one VAT rate can be default. If you set this to Yes, the system will unset the previous default.
             </p>
           </div>

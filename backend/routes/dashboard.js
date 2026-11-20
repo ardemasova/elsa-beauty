@@ -4,8 +4,49 @@ const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
 const { requireFeature } = require('../middleware/featureGuard');
 const metrics = require("../services/reports/metrics");
+const { dashboard } = require("../services/reports/dashboard");
 
 const router = express.Router();
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** null = everything; otherwise a de-duplicated list of ids. */
+function idList(v, name) {
+  if (v === undefined || v === null) return null;
+  if (!Array.isArray(v) || v.length > 2000 || !v.every((x) => typeof x === "string" && UUID_RE.test(x))) {
+    throw new metrics.ReportInputError(`${name} must be a list of ids`);
+  }
+  return [...new Set(v)];
+}
+
+// =======================
+// POST /api/dashboard/overview  { from, to, masters?, services?, clients? }
+// Everything the dashboard shows. Masters get their own figures only and no
+// customer lists.
+// =======================
+router.post("/overview", authenticateToken, requireFeature("dashboard"), async (req, res) => {
+  try {
+    const schema = await resolveTenantSchema(req);
+    const body = req.body || {};
+    const p = metrics.parsePeriod(body.from, body.to);
+    if (p.days > 62) return res.status(400).json({ message: "The dashboard shows at most two months" });
+    const f = {
+      masters: idList(body.masters, "masters"),
+      services: idList(body.services, "services"),
+      clients: idList(body.clients, "clients"),
+    };
+    const forMaster = req.user.role !== "admin";
+    if (forMaster) {
+      const own = await db.query(`SELECT id FROM ${schema}.masters WHERE user_id = $1`, [req.user.id]);
+      if (!own.rows.length) return res.status(404).json({ message: "No master profile for this user in this branch" });
+      f.masters = own.rows.map((r) => r.id);
+    }
+    res.json(await dashboard(db, schema, p, f, { forMaster }));
+  } catch (err) {
+    if (err instanceof metrics.ReportInputError) return res.status(400).json({ message: err.message });
+    console.error("DASHBOARD OVERVIEW ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 // =======================
 // GET dashboard stats

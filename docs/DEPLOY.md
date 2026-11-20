@@ -234,3 +234,21 @@ docker compose run --rm backend npm run demo-template -- snapshot --from salon_d
 В «Settings» каждого салона проверьте префикс номера счёта (по умолчанию
 первые три буквы названия, у второго салона с тем же началом — `LOL2` и
 т. д.). Префикс можно менять, пока в этом году в салоне нет выданных счетов.
+
+# Обновление: дашборд и календарь (этап 5)
+
+Миграция `006` добавляет в настройки салона часы работы, рабочие дни и
+цель по выручке на месяц. Данные не меняются.
+
+```bash
+cd ~/ELSA_BEAUTY/ELSA_BEAUTY_git
+./scripts/backup.sh
+git fetch origin && git checkout stage-5/dashboard && git pull
+docker compose build
+docker compose run --rm backend npm run migrate      # applied 006_dashboard_settings.sql
+docker compose up -d
+```
+
+После обновления в «Settings» каждого салона заполните блок «Opening hours
+and goal»: часы работы, рабочие дни и цель по выручке на месяц (с НДС).
+Без цели шкала Revenue сравнивает с теми же датами прошлого года.

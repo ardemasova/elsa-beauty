@@ -11,17 +11,17 @@ function decodeToken(token) {
   }
 }
 
-export default function CreateAppointmentModal({ onClose, onSuccess }) {
+export default function CreateAppointmentModal({ onClose, onSuccess, initialMasterId = "", initialStart = "" }) {
   const [masters, setMasters] = useState([]);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [masterId, setMasterId] = useState("");
+  const [masterId, setMasterId] = useState(initialMasterId);
   const [clientId, setClientId] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [startTime, setStartTime] = useState("");
+  const [startTime, setStartTime] = useState(initialStart);
 
   const token = localStorage.getItem("token");
   const tokenPayload = useMemo(() => decodeToken(token), [token]);
@@ -66,7 +66,7 @@ export default function CreateAppointmentModal({ onClose, onSuccess }) {
 
       // For master role: preselect and lock master id
       if (!isAdmin && mastersData[0]?.id) {
-        setMasterId(mastersData[0].id);
+        setMasterId((cur) => cur || mastersData[0].id);
       }
     } catch (err) {
       setError(err.message || "Failed to load data");

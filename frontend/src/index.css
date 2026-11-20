@@ -4,7 +4,7 @@
   font-weight: 400;
 
   color-scheme: light;
-  color: #111827;
+  color: var(--text);
   background-color: #ffffff;
 
   font-synthesis: none;

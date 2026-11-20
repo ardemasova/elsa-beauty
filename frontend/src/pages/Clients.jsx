@@ -36,7 +36,7 @@ function AvatarCell({ url, alt }) {
         justifyContent: "center",
         margin: "0 auto",
         color: "#9ca3af",
-        fontWeight: 700,
+        fontWeight: 600,
         fontSize: 12,
       }}
       title="No photo"
@@ -309,7 +309,7 @@ export default function Clients() {
             )}
 
             {!editingId && (
-              <p style={{ margin: "0 0 12px 0", color: "#6b7280", fontWeight: 700, fontSize: 13 }}>
+              <p style={{ margin: "0 0 12px 0", color: "#6b7280", fontWeight: 600, fontSize: 13 }}>
                 You can upload a photo after creating the partner.
               </p>
             )}

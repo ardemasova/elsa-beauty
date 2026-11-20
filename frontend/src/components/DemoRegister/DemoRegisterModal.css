@@ -107,7 +107,7 @@
 .demo-modal-header h2 {
   margin: 0 0 8px 0;
   font-size: 1.75rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.5px;
 }
 
@@ -134,8 +134,8 @@
 }
 
 .form-group label {
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;

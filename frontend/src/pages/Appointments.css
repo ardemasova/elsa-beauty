@@ -41,7 +41,7 @@
   padding-left: 16px;
 
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--nav-bg);
 }
 
@@ -63,7 +63,7 @@
   border-radius: 8px;
   background: var(--nav-accent-2);
   color: #fff;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -87,7 +87,7 @@
   border-radius: 8px;
   background: #fff;
   color: var(--nav-bg);
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -114,7 +114,7 @@
   border-radius: 8px;
   border-left: 4px solid #dc2626;
   margin: 16px 32px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* =========================
@@ -181,9 +181,9 @@
 .card th {
   padding: 16px;
   text-align: left;
-  font-weight: 800;
+  font-weight: 600;
   font-size: 13px;
-  color: #0f172a;
+  color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -217,7 +217,7 @@
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 600;
   transition: all 0.2s;
 }
 
@@ -280,8 +280,8 @@
 
 .modal-content h3 {
   font-size: 20px;
-  font-weight: 800;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 20px 0;
 }
 
@@ -329,7 +329,7 @@
   padding: 12px 20px;
   border: none;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 600;
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
@@ -387,7 +387,7 @@
 
 .date-range {
   color: var(--nav-bg);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .nav-btn {
@@ -420,7 +420,7 @@
 
 .period-selector button {
   color: var(--nav-bg);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .period-selector button:hover {
@@ -437,7 +437,7 @@
   border: 1px solid rgba(0, 80, 103, 0.25);
   background: rgba(0, 80, 103, 0.06);
   color: var(--nav-bg);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .filter-toggle:hover {
@@ -463,7 +463,7 @@
 .dashboard-topbar .add-appointment-btn {
   background: var(--nav-accent-2);
   color: #fff;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .dashboard-topbar .add-appointment-btn:hover {
@@ -598,7 +598,7 @@
   border: none;
   border-bottom: 3px solid transparent;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--muted);
   cursor: pointer;
   transition: all 0.2s;

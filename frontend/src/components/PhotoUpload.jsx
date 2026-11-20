@@ -62,7 +62,7 @@ export default function PhotoUpload({ entity, id, token, currentUrl, onUploaded 
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontWeight: 800,
+            fontWeight: 600,
             color: "#6b7280",
           }}
         >
@@ -84,7 +84,7 @@ export default function PhotoUpload({ entity, id, token, currentUrl, onUploaded 
             cursor: loading ? "not-allowed" : "pointer",
             background: "#fff",
             color: "#005067",
-            fontWeight: 800,
+            fontWeight: 600,
             opacity: loading ? 0.7 : 1,
             whiteSpace: "nowrap",
           }}
@@ -101,7 +101,7 @@ export default function PhotoUpload({ entity, id, token, currentUrl, onUploaded 
       </div>
 
       {error && (
-        <div style={{ background: "#fee2e2", color: "#991b1b", padding: 12, borderRadius: 8, fontWeight: 700 }}>
+        <div style={{ background: "#fee2e2", color: "#991b1b", padding: 12, borderRadius: 8, fontWeight: 600 }}>
           {error}
         </div>
       )}

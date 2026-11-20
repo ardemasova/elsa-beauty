@@ -38,14 +38,14 @@
 }
 
 .modal-close:hover {
-  color: #1f2937;
+  color: var(--text);
 }
 
 .create-modal h2 {
   margin: 0 0 24px 0;
   font-size: 1.5rem;
-  font-weight: 700;
-  color: #1f2937;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .error-message {
@@ -132,7 +132,7 @@
   flex: 1;
   padding: 12px 16px;
   background: #e5e7eb;
-  color: #1f2937;
+  color: var(--text);
   border: none;
   border-radius: 6px;
   font-weight: 600;

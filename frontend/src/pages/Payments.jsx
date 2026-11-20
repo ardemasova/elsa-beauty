@@ -775,7 +775,7 @@ function PaymentModal({
                 ))}
               </select>
               {partnerId && filteredAppointments.length === 0 && (
-                <p style={{ marginTop: 8, color: "#6b7280", fontWeight: 700, fontSize: 13 }}>
+                <p style={{ marginTop: 8, color: "#6b7280", fontWeight: 600, fontSize: 13 }}>
                   No appointments found for this partner.
                 </p>
               )}
