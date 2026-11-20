@@ -85,6 +85,7 @@ function previousPeriod({ from, to, days }) {
 }
 
 function validTimezone(tz) {
+  if (typeof tz !== "string" || !tz) return false; // undefined would mean "server's zone"
   try {
     new Intl.DateTimeFormat("en", { timeZone: tz });
     return true;
