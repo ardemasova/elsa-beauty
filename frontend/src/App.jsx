@@ -15,7 +15,6 @@ import Settings from "./pages/Settings";
 const Reports = lazy(() => import("./pages/Reports"));
 import AiAssistant from "./pages/AIAssistant";
 import Invoice from "./pages/Invoice";
-import MasterPerformanceReport from "./components/MasterPerformanceReport";
 import "./App.css";
 
 function App() {
@@ -124,14 +123,7 @@ function App() {
             }
           />
 
-          <Route
-            path="/reports/masters"
-            element={
-              <ProtectedRoute>
-                <MasterPerformanceReport />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/reports/masters" element={<Navigate to="/reports" replace />} />
 
           <Route
             path="/ai-assistant"

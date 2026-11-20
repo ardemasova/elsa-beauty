@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { getPayments, createPayment, updatePayment } from "../api/paymentsApi";
+import { getPayments, createPayment, updatePayment, createCreditNote } from "../api/paymentsApi";
+import { getTokenPayload } from "../auth/session";
+import { money } from "./reports/format";
 import { fetchClients, fetchAppointments, fetchItems, fetchServices, fetchExpenses, deletePayment } from "../api/api";
 import "./Payments.css";
 import { exportRowsToExcel } from "../utils/exportExcel";
@@ -45,6 +47,8 @@ export default function Payments() {
 
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activeTab, setActiveTab] = useState("incoming");
+  const [creditFor, setCreditFor] = useState(null); // payment being refunded
+  const isAdmin = getTokenPayload(token)?.role === "admin";
 
   useEffect(() => {
     if (!token) {
@@ -408,6 +412,7 @@ export default function Payments() {
             <table className="payments-table">
               <thead>
                 <tr>
+                  <th>No.</th>
                   <th>Partner</th>
                   <th>Paid For</th>
                   <th>Qty</th>
@@ -431,11 +436,21 @@ export default function Payments() {
                   } else if (payment.expense_id) {
                     paidFor = getExpenseInfo(payment.expense_id);
                   }
+                  const isCredit = payment.document_type === "credit_note";
+                  if (isCredit) paidFor = `Credit note for ${payment.refund_of_number || "invoice"}${paidFor ? ` (${paidFor})` : ""}`;
+                  const refundable = Number(payment.amount) - Number(payment.refunded || 0);
+                  const canRefund = isAdmin && payment.type === "incoming" && !isCredit && refundable > 0.004;
 
                   const qtyVal = payment.qty ?? payment.quantity ?? 1;
 
                   return (
-                    <tr key={payment.id}>
+                    <tr key={payment.id} className={isCredit ? "row-credit-note" : ""}>
+                      <td className="cell-number">
+                        {payment.document_number || "—"}
+                        {Number(payment.refunded) > 0 && (
+                          <div className="refunded-note">refunded {money(payment.refunded)}</div>
+                        )}
+                      </td>
                       <td className="cell-partner">
                         <div className="partner-info">
                           <span className="partner-name">{getPartnerInfo(payment.partner_id)}</span>
@@ -443,16 +458,18 @@ export default function Payments() {
                       </td>
                       <td className="cell-paid-for">{paidFor}</td>
                       <td className="cell-qty">{qtyVal}</td>
-                      <td className="cell-amount">${Number(payment.amount || 0).toFixed(2)}</td>
+                      <td className="cell-amount">{money(payment.amount)}</td>
                       <td className="cell-vat">{payment.vat_percent != null ? `${Number(payment.vat_percent)}%` : "-"}</td>
                       <td className="cell-method">
                         <span className={`badge ${getMethodBadgeColor(payment.method)}`}>{payment.method}</span>
                       </td>
                       <td className="cell-paid-at">{formatDate(payment.paid_at)}</td>
                       <td className="cell-actions">
-                        <button className="btn-icon" title="Edit" onClick={() => setEditingPayment(payment)} disabled={loading}>
-                          ✏️
-                        </button>
+                        {!isCredit && (
+                          <button className="btn-icon" title="Edit" onClick={() => setEditingPayment(payment)} disabled={loading}>
+                            ✏️
+                          </button>
+                        )}
                         <button
                           className="btn-icon btn-icon-danger"
                           title="Delete"
@@ -461,9 +478,14 @@ export default function Payments() {
                         >
                           🗑️
                         </button>
-                        <button className="btn-icon" title="View Invoice" onClick={() => navigate(`/invoices/${payment.id}`)}>
+                        <button className="btn-icon" title={isCredit ? "View credit note" : "View invoice"} onClick={() => navigate(`/invoices/${payment.id}`)}>
                           📄
                         </button>
+                        {canRefund && (
+                          <button className="btn-icon" title="Refund: issue a credit note" onClick={() => setCreditFor({ ...payment, refundable })}>
+                            ↩️
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -472,7 +494,7 @@ export default function Payments() {
             </table>
 
             <div className="payments-summary">
-              <strong>Total {activeTab}: ${getTotalAmount()}</strong>
+              <strong>Total {activeTab}: {money(getTotalAmount())}</strong>
             </div>
           </>
         ) : (
@@ -486,6 +508,18 @@ export default function Payments() {
       </div>
 
       {/* Create */}
+      {creditFor && (
+        <CreditNoteModal
+          payment={creditFor}
+          onClose={() => setCreditFor(null)}
+          onDone={async () => {
+            setCreditFor(null);
+            await loadPayments(activeTab);
+          }}
+          token={token}
+        />
+      )}
+
       {showCreateModal && (
         <PaymentModal
           title="New Payment"
@@ -836,6 +870,63 @@ function PaymentModal({
             <button type="button" className="secondary" onClick={onClose} disabled={loading}>
               Cancel
             </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+/** Refund all or part of a customer invoice by issuing a credit note. */
+function CreditNoteModal({ payment, token, onClose, onDone }) {
+  const [amount, setAmount] = useState(Number(payment.refundable).toFixed(2));
+  const [method, setMethod] = useState(payment.method === "Cash" ? "Cash" : "Card");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await createCreditNote(token, payment.id, { amount: Number(amount), method, reason });
+      await onDone();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <h3>Refund invoice {payment.document_number}</h3>
+        <p className="muted" style={{ marginBottom: 12 }}>
+          A credit note with its own number is issued. It lowers income in the month it is issued.
+          Up to {money(payment.refundable)} can be refunded.
+        </p>
+        <form onSubmit={submit}>
+          {error && <p className="error-message">{error}</p>}
+          <div className="form-group">
+            <label>Amount to refund (VAT incl.)</label>
+            <input type="number" min="0.01" step="0.01" max={payment.refundable} value={amount}
+                   onChange={(e) => setAmount(e.target.value)} required disabled={busy} />
+          </div>
+          <div className="form-group">
+            <label>Refunded by</label>
+            <select value={method} onChange={(e) => setMethod(e.target.value)} disabled={busy}>
+              <option value="Card">Card</option>
+              <option value="Cash">Cash</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Reason (printed on the credit note)</label>
+            <input type="text" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)}
+                   placeholder="e.g. Appointment cancelled, deposit returned" required disabled={busy} />
+          </div>
+          <div className="modal-actions">
+            <button type="submit" disabled={busy}>{busy ? "Issuing..." : "Issue credit note"}</button>
+            <button type="button" className="secondary" onClick={onClose} disabled={busy}>Cancel</button>
           </div>
         </form>
       </div>

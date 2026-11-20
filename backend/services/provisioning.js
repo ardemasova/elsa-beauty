@@ -26,7 +26,18 @@ const CLONE_FILTERS = {
                      SELECT a.id FROM $FROM.appointments a
                       WHERE a.master_id IN (SELECT id FROM $FROM.masters)
                         AND a.service_id IN (SELECT id FROM $FROM.services)
-                        AND (a.client_id IS NULL OR a.client_id IN (SELECT id FROM $FROM.clients))))`,
+                        AND (a.client_id IS NULL OR a.client_id IN (SELECT id FROM $FROM.clients))))
+               -- a credit note is copied only if the invoice it corrects is
+               AND (x.refund_of IS NULL OR x.refund_of IN (
+                     SELECT o.id FROM $FROM.payments o
+                      WHERE o.method IN ('Card', 'Cash')
+                        AND o.partner_id IN (SELECT id FROM $FROM.clients)
+                        AND (o.item_id IS NULL OR o.item_id IN (SELECT id FROM $FROM.items))
+                        AND (o.appointment_id IS NULL OR o.appointment_id IN (
+                              SELECT a.id FROM $FROM.appointments a
+                               WHERE a.master_id IN (SELECT id FROM $FROM.masters)
+                                 AND a.service_id IN (SELECT id FROM $FROM.services)
+                                 AND (a.client_id IS NULL OR a.client_id IN (SELECT id FROM $FROM.clients))))))`,
 };
 
 // Spain: general 21%, reduced 10%, super-reduced 4%.
@@ -80,9 +91,72 @@ async function cloneData(client, fromSchema, toSchema, ownerUserId, tables = CLO
   }
 }
 
-async function seedDefaults(client, schema, branchName) {
+/** Invoice prefixes already used by the other branches of an account. */
+async function usedPrefixes(q, accountId, exceptSchema) {
+  const { rows } = await q.query(
+    `SELECT schema_name FROM public.tenants WHERE account_id = $1 AND schema_name <> $2`,
+    [accountId, exceptSchema || ""]
+  );
+  const used = new Set();
+  for (const r of rows) {
+    const p = await q
+      .query(`SELECT upper(invoice_prefix) AS p FROM ${quoteIdent(r.schema_name)}.settings WHERE invoice_prefix IS NOT NULL`)
+      .catch(() => ({ rows: [] }));
+    p.rows.forEach((x) => used.add(x.p));
+  }
+  return used;
+}
+
+/**
+ * "Lola Centro" -> "LOL", or "LOL2" if another branch of the same company
+ * already uses "LOL": branches share one NIF, so their invoice numbers must
+ * never coincide.
+ */
+async function uniquePrefix(q, accountId, branchName, schema) {
+  const base = String(branchName || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "B";
+  const used = await usedPrefixes(q, accountId, schema);
+  let cand = base;
+  for (let k = 2; used.has(cand); k++) cand = `${base.slice(0, 5)}${k}`;
+  return cand;
+}
+
+/**
+ * Gives every customer document of a (freshly copied) branch a new number in
+ * its own series and resets the counters, so numbers never repeat.
+ */
+async function renumberDocuments(client, schema) {
   const s = quoteIdent(schema);
-  await client.query(`INSERT INTO ${s}.settings (name) VALUES ($1)`, [branchName]);
+  // One UPDATE (rows are touched once), uniqueness checked at commit.
+  await client.query(`SET CONSTRAINTS ${s}.payments_document_number_key DEFERRED`);
+  await client.query(`DELETE FROM ${s}.document_counters`);
+  const tzRow = await client.query(`SELECT timezone FROM ${s}.settings ORDER BY created_at NULLS LAST LIMIT 1`);
+  const tz = /^[A-Za-z_]+\/[A-Za-z_\/+-]+$/.test(tzRow.rows[0]?.timezone || "") ? tzRow.rows[0].timezone : "Europe/Madrid";
+  await client.query(`
+    WITH cfg AS (SELECT invoice_prefix AS prefix FROM ${s}.settings ORDER BY created_at NULLS LAST LIMIT 1),
+    numbered AS (
+      SELECT p.id,
+             CASE WHEN p.document_type = 'credit_note' THEN 'R' ELSE 'F' END AS ser,
+             EXTRACT(year FROM (p.paid_at AT TIME ZONE '${tz}'))::int AS yr,
+             row_number() OVER (PARTITION BY p.document_type, EXTRACT(year FROM (p.paid_at AT TIME ZONE '${tz}'))
+                                ORDER BY p.paid_at, p.id) AS n
+        FROM ${s}.payments p WHERE p.type = 'incoming'
+    )
+    UPDATE ${s}.payments p
+       SET document_number = concat_ws('-', NULLIF((SELECT prefix FROM cfg), ''), numbered.ser, numbered.yr::text, lpad(numbered.n::text, greatest(4, length(numbered.n::text)), '0'))
+      FROM numbered WHERE numbered.id = p.id
+       AND p.document_number IS DISTINCT FROM concat_ws('-', NULLIF((SELECT prefix FROM cfg), ''), numbered.ser, numbered.yr::text, lpad(numbered.n::text, greatest(4, length(numbered.n::text)), '0'))`);
+  await client.query(`
+    INSERT INTO ${s}.document_counters (series, year, last)
+    SELECT CASE WHEN document_type = 'credit_note' THEN 'R' ELSE 'F' END,
+           EXTRACT(year FROM (paid_at AT TIME ZONE '${tz}'))::int, count(*)
+      FROM ${s}.payments WHERE type = 'incoming' GROUP BY 1, 2`);
+  // Check uniqueness now, so the transaction can go on altering the table.
+  await client.query(`SET CONSTRAINTS ${s}.payments_document_number_key IMMEDIATE`);
+}
+
+async function seedDefaults(client, schema, branchName, prefix) {
+  const s = quoteIdent(schema);
+  await client.query(`INSERT INTO ${s}.settings (name, invoice_prefix) VALUES ($1, $2)`, [branchName, prefix]);
   for (const v of DEFAULT_VAT_RATES) {
     await client.query(`INSERT INTO ${s}.vat (percent, is_default) VALUES ($1, $2)`, [v.percent, v.is_default]);
   }
@@ -114,8 +188,12 @@ async function createTenant({ accountId, name, cloneFrom, ownerUserId }) {
       await client.query(`SELECT id FROM public.accounts WHERE id = $1 FOR UPDATE`, [accountId]);
       await assertBranchLimit(client, accountId);
 
-      if (cloneFrom) await cloneData(client, cloneFrom, schema, ownerUserId);
-      else await seedDefaults(client, schema, branchName);
+      const prefix = await uniquePrefix(client, accountId, branchName, schema);
+      if (cloneFrom) {
+        await cloneData(client, cloneFrom, schema, ownerUserId);
+        await client.query(`UPDATE ${quoteIdent(schema)}.settings SET invoice_prefix = $1`, [prefix]);
+        await renumberDocuments(client, schema);
+      } else await seedDefaults(client, schema, branchName, prefix);
 
       const { rows } = await client.query(
         `INSERT INTO public.tenants (id, name, schema_name, is_active, account_id)
@@ -250,6 +328,8 @@ async function createAccount({ accountName, planCode = "standard", ownerEmail, o
 
 module.exports = {
   cloneData,
+  usedPrefixes,
+  renumberDocuments,
   createAccount,
   createTenant,
   assertUserLimit,

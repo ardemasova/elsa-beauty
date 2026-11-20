@@ -174,3 +174,63 @@ crontab -e
 сервером, заведите Hetzner Storage Box и впишите в `.env`
 `BACKUP_REMOTE=uXXXXX@uXXXXX.your-storagebox.de:elsa-backups/` (вход по
 SSH-ключу).
+
+# Обновление: возвраты и нумерация счетов (этап 4)
+
+Миграция `004` присваивает номера всем уже записанным оплатам клиентов
+(по дате, отдельно в каждом салоне) и даёт каждому салону свой префикс
+номера. Миграция `005` удаляет старые отчётные представления.
+
+```bash
+cd ~/ELSA_BEAUTY/ELSA_BEAUTY_git
+./scripts/backup.sh
+git fetch origin && git checkout stage-4/credit-notes && git pull
+docker compose build
+docker compose stop backend
+docker compose run --rm backend npm run migrate
+docker compose up -d
+curl -s localhost:3000/api/health        # {"ok":true}
+```
+
+## НДС 21 % там, где ставка не указана
+
+Сначала посмотреть, что изменится (ничего не меняет):
+
+```bash
+docker compose run --rm backend npm run set-missing-vat -- --rate 21 --dry-run
+```
+
+Оплаты с номером счёта — это выданные счета, по умолчанию их НДС не
+меняется, они только перечисляются. Сейчас все салоны на сервере
+демонстрационные, поэтому меняем и их:
+
+```bash
+docker compose run --rm backend npm run set-missing-vat -- --rate 21 --include-issued
+```
+
+Для реального клиента `--include-issued` не использовать.
+
+## Данные до конца года в salon_demo
+
+Записи с понедельника по субботу до 31 декабря; все прошедшие записи
+завершены и оплачены, плюс продажи товаров и ежемесячные расходы.
+Повторный запуск ничего не дублирует.
+
+```bash
+docker compose run --rm backend npm run demo-data -- --schema salon_demo --force
+```
+
+`--force` нужен, потому что salon_demo принадлежит вашей обычной учётной
+записи, а не демо-аккаунту. Для салона клиента эту команду не запускать.
+
+Чтобы новые демо-аккаунты получали эти данные, обновите шаблон:
+
+```bash
+docker compose run --rm backend npm run demo-template -- snapshot --from salon_demo --include-sample-data
+```
+
+## После обновления
+
+В «Settings» каждого салона проверьте префикс номера счёта (по умолчанию
+первые три буквы названия, у второго салона с тем же началом — `LOL2` и
+т. д.). Префикс можно менять, пока в этом году в салоне нет выданных счетов.

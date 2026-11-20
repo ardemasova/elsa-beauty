@@ -18,8 +18,9 @@ async function getScheduleAnalysis(schema, from, to) {
         AVG(EXTRACT(EPOCH FROM (a.end_time - a.start_time)) / 60)::INTEGER as avgDurationMin
       FROM ${schema}.masters m
       LEFT JOIN ${schema}.appointments a ON m.id = a.master_id 
-        AND a.start_time >= $1::timestamp
-        AND a.start_time < $2::timestamp
+        AND a.start_time >= ($1::date)::timestamp AT TIME ZONE 'Europe/Madrid'
+        AND a.start_time < ($2::date + 1)::timestamp AT TIME ZONE 'Europe/Madrid'
+        AND a.client_id IS NOT NULL
       GROUP BY m.id, m.name
       ORDER BY m.name
     `;
@@ -47,8 +48,9 @@ async function getScheduleAnalysis(schema, from, to) {
         COUNT(a.id) as usageCount
       FROM ${schema}.services s
       LEFT JOIN ${schema}.appointments a ON s.id = a.service_id
-        AND a.start_time >= $1::timestamp
-        AND a.start_time < $2::timestamp
+        AND a.start_time >= ($1::date)::timestamp AT TIME ZONE 'Europe/Madrid'
+        AND a.start_time < ($2::date + 1)::timestamp AT TIME ZONE 'Europe/Madrid'
+        AND a.client_id IS NOT NULL
       GROUP BY s.id, s.name, s.duration
       ORDER BY usageCount DESC
     `;

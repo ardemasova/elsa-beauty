@@ -8,15 +8,15 @@ function fallbackSummary(input) {
   return {
     headline: `Report for ${input.period.from} to ${input.period.to}`,
     key_insights: [
-      `Total revenue: $${input.revenue.total.toFixed(2)} from ${input.revenue.completedAppointments} appointments`,
-      `Average check: $${input.averages.avgCheck.toFixed(2)}`,
-      `Cancelled appointments: ${input.cancelled.count} (Lost revenue: $${input.cancelled.lostRevenue.toFixed(2)})`,
+      `Total revenue: €${input.revenue.total.toFixed(2)} from ${input.revenue.completedAppointments} appointments`,
+      `Average check: €${input.averages.avgCheck.toFixed(2)}`,
+      `Cancelled appointments: ${input.cancelled.count} (Lost revenue: €${input.cancelled.lostRevenue.toFixed(2)})`,
     ],
     warnings:
       input.cancelled.count > 0
         ? [
             `${input.cancelled.count} appointments were cancelled`,
-            `Lost revenue due to cancellations: $${input.cancelled.lostRevenue.toFixed(2)}`,
+            `Lost revenue due to cancellations: €${input.cancelled.lostRevenue.toFixed(2)}`,
           ]
         : [],
     recommendations: [
@@ -40,20 +40,22 @@ Here is the business report data for a beauty salon:
 Period: ${input.period.from} to ${input.period.to}
 
 Revenue:
-- Total Revenue: $${input.revenue.total.toFixed(2)}
+- Total Revenue: €${input.revenue.total.toFixed(2)}
 - Completed Appointments: ${input.revenue.completedAppointments}
-- Average Check: $${input.averages.avgCheck.toFixed(2)}
+- Average Check: €${input.averages.avgCheck.toFixed(2)}
 
 Revenue by Master:
 ${input.revenueByMaster
   .map(
-    (m) => `- ${m.masterName}: $${m.revenue.toFixed(2)} (${m.appointments} appointments)`
+    (m) => `- ${m.masterName}: €${m.revenue.toFixed(2)} (${m.appointments} appointments)`
   )
   .join("\n")}
 
 Cancelled Appointments:
 - Count: ${input.cancelled.count}
-- Lost Revenue: $${input.cancelled.lostRevenue.toFixed(2)}
+- Lost Revenue: €${input.cancelled.lostRevenue.toFixed(2)}
+
+${input.extraContext || ""}
 
 Please analyze this data and provide insights.`;
 

@@ -211,20 +211,27 @@ test("deactivated users are locked out immediately", async () => {
 // --- Master permissions -------------------------------------------------------
 
 test("master cannot see salon reports, only own performance", async () => {
-  for (const path of ["/api/reports/revenue-by-day?from=2026-01-01&to=2026-12-31", "/api/reports/summary?from=2026-01-01&to=2026-12-31", "/api/dashboard/stats"]) {
-    assert.equal((await api("GET", path, { token: masterToken })).status, 403, path);
+  const Y = "from=2026-01-01&to=2026-12-31";
+  for (const path of [`/api/analytics/overview?${Y}`, `/api/analytics/breakdown/day?${Y}`, "/api/dashboard/stats", "/api/reports/ai-summary"]) {
+    const method = path.includes("ai-summary") ? "POST" : "GET";
+    assert.equal((await api(method, path, { token: masterToken, body: method === "POST" ? { from: "2026-01-01", to: "2026-12-31" } : undefined })).status, 403, path);
   }
-  const mp = await api("GET", "/api/reports/master-performance", { token: masterToken });
-  assert.equal(mp.status, 200);
-  assert.equal(mp.data.length, 1);
-  assert.equal(mp.data[0].master_name, "Master One");
+  const me = await api("GET", `/api/analytics/me?${Y}`, { token: masterToken });
+  assert.equal(me.status, 200);
+  assert.equal(me.data.master.name, "Master One");
 });
 
-test("fixed report: cancelled appointments are no longer counted as revenue", async () => {
-  const mp = await api("GET", "/api/reports/master-performance", { token: adminToken });
-  const adminAsMaster = mp.data.find((m) => m.master_name === "Admin As Master");
-  assert.equal(Number(adminAsMaster.revenue_generated), 0); // only a cancelled appointment
-  assert.equal(Number(adminAsMaster.appointments_cancelled), 1);
+test("old report endpoints are gone (one calculation everywhere)", async () => {
+  for (const path of ["/api/reports/summary?from=2026-01-01&to=2026-12-31", "/api/reports/master-performance", "/api/reports/cogs-report?from=2026-01-01&to=2026-12-31"]) {
+    assert.equal((await api("GET", path, { token: adminToken })).status, 404, path);
+  }
+});
+
+test("cancelled appointments are not counted as revenue", async () => {
+  const r = await api("GET", "/api/analytics/breakdown/master?from=2026-01-01&to=2026-12-31", { token: adminToken });
+  const adminAsMaster = r.data.rows.find((m) => m.name === "Admin As Master");
+  assert.equal(adminAsMaster.rendered_value, 0); // only a cancelled appointment
+  assert.equal(adminAsMaster.cancelled, 1);
 });
 
 test("master cannot change company settings or VAT", async () => {
@@ -389,7 +396,8 @@ test("admin edit of a payment must keep partner type and direction consistent", 
     token: adminToken,
     body: { partner_id: "c0000000-0000-0000-0000-000000000002", appointment_id: own.appointment_id, amount: 40, method: "Card", type: "incoming" },
   });
-  assert.equal(r.status, 400);
+  // 409 when the payment is an issued invoice (its client is frozen anyway)
+  assert.ok([400, 409].includes(r.status), `got ${r.status}`);
 });
 
 test("password change logs out other sessions; own password cannot be changed via the users API", async () => {

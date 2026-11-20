@@ -3,7 +3,8 @@ import { getBranches, getBreakdown, getMyFigures, getOverview, getReceivables } 
 import { getSession, getTokenPayload } from "../auth/session";
 import { exportRowsToExcel } from "../utils/exportExcel";
 import { hours, int, money, plural, PRESETS, periodLabel, presetPeriod } from "./reports/format";
-import { DailyChart, DataTable, FigureRow, MoneyEquation } from "./reports/parts";
+import { DailyChart, DataTable, FigureRow, MoneyEquation, PrintHeader } from "./reports/parts";
+import { getCompanySettings } from "../api/settingsApi";
 import "./Reports.css";
 
 const ratio = (a, b, mul = 1) => (b ? Math.round((a / b) * mul * 100) / 100 : 0);
@@ -73,7 +74,7 @@ const TABS = {
       {
         key: "date",
         label: "Visit",
-        render: (r) => new Date(r.date.replace(" ", "T")).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }),
+        render: (r) => (r.date ? new Date(r.date.replace(" ", "T")).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }) : "—"),
       },
       { key: "client_name", label: "Client" },
       { key: "client_phone", label: "Phone" },
@@ -143,6 +144,19 @@ function PeriodPicker({ preset, period, onChange }) {
   );
 }
 
+/** Company details for the printed header (name, address, NIF). */
+function useCompany() {
+  const [company, setCompany] = useState(null);
+  useEffect(() => {
+    getCompanySettings(localStorage.getItem("token"))
+      .then((d) =>
+        setCompany({ name: d.company_name, address: d.company_address, vat_number: d.company_vat_number, phone: d.company_phone, email: d.company_email })
+      )
+      .catch(() => setCompany(null));
+  }, []);
+  return company;
+}
+
 /** Loads data whenever `key` changes; keeps the last result visible while reloading. */
 function useAsync(fn, key) {
   const [state, setState] = useState({ key: null, error: "", data: null });
@@ -197,7 +211,10 @@ function AdminReports({ session }) {
   const pkey = `${period.from}|${period.to}`;
   const overview = useAsync(() => getOverview(period), pkey);
   const days = useAsync(() => getBreakdown("day", period).then((d) => d.rows), pkey);
-  const table = useAsync(() => TABS[tab].load(period), `${tab}|${pkey}`);
+  // Rows are tagged with the tab they belong to: while another tab is loading
+  // the previous tab's rows must not be drawn with the new tab's columns.
+  const tableRaw = useAsync(() => TABS[tab].load(period).then((rows) => ({ tab, rows })), `${tab}|${pkey}`);
+  const table = { ...tableRaw, data: tableRaw.data?.tab === tab ? tableRaw.data.rows : null };
 
   const currency = overview.data?.period?.currency || "EUR";
   const branchName = session?.currentTenant?.name;
@@ -211,9 +228,11 @@ function AdminReports({ session }) {
 
   const o = overview.data;
   const c = o?.current;
+  const company = useCompany();
 
   return (
     <div className="rp">
+      <PrintHeader company={company} branch={branchName} title="Business report" period={periodLabel(period)} />
       <Header
         title="Reports"
         subtitle={`${branchName ? `${branchName}, ` : ""}${periodLabel(period)}`}
@@ -264,6 +283,7 @@ function AdminReports({ session }) {
       </nav>
 
       <section role="tabpanel" className={table.loading ? "rp-stale" : ""}>
+        <h2 className="rp-print-only rp-print-section">{TABS[tab].label}</h2>
         {table.error && <p className="rp-error" role="alert">{table.error}</p>}
         {table.data && <DataTable columns={TABS[tab].columns} rows={table.data} currency={currency} empty={TABS[tab].empty} />}
       </section>
@@ -283,9 +303,11 @@ function MasterReports() {
   const d = me.data;
   const c = d?.current;
   const currency = d?.period?.currency || "EUR";
+  const company = useCompany();
 
   return (
     <div className="rp">
+      <PrintHeader company={company} branch={getSession()?.currentTenant?.name} title={`Results: ${d?.master?.name || "my results"}`} period={periodLabel(period)} />
       <Header
         title="My results"
         subtitle={periodLabel(period)}

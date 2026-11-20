@@ -53,6 +53,7 @@ export default function Settings() {
     company_email: "",
     company_phone: "",
     company_website: "",
+    invoice_prefix: "",
   });
 
   // Branches
@@ -120,6 +121,7 @@ export default function Settings() {
         company_email: data.company_email || "",
         company_phone: data.company_phone || "",
         company_website: data.company_website || "",
+        invoice_prefix: data.invoice_prefix || "",
       });
       setError("");
     } catch (err) {
@@ -367,6 +369,25 @@ export default function Settings() {
                       placeholder="https://example.com"
                       disabled={saving}
                     />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Invoice number prefix</label>
+                    <input
+                      type="text"
+                      name="invoice_prefix"
+                      value={formData.invoice_prefix}
+                      onChange={handleInputChange}
+                      placeholder="e.g. CEN"
+                      maxLength={6}
+                      pattern="[A-Za-z0-9]*"
+                      disabled={saving}
+                    />
+                    <small className="muted">
+                      Invoices are numbered {(formData.invoice_prefix || "").toUpperCase() ? `${formData.invoice_prefix.toUpperCase()}-` : ""}F-{new Date().getFullYear()}-0001,
+                      credit notes {(formData.invoice_prefix || "").toUpperCase() ? `${formData.invoice_prefix.toUpperCase()}-` : ""}R-{new Date().getFullYear()}-0001.
+                      Each branch of a company needs its own prefix.
+                    </small>
                   </div>
                 </section>
 

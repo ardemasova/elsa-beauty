@@ -18,6 +18,7 @@ export const getCompanySettings = async (token) => {
     company_email: data.email || "",
     company_phone: data.phone || "",
     company_website: data.website || "",
+    invoice_prefix: data.invoice_prefix || "",
   };
 };
 
@@ -33,6 +34,7 @@ export const updateCompanySettings = async (token, formData) => {
     email: formData.company_email,
     phone: formData.company_phone,
     website: formData.company_website,
+    invoice_prefix: formData.invoice_prefix,
   };
 
   const response = await fetch(`${API_BASE}/settings/company`, {
