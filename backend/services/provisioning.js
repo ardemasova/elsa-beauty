@@ -91,7 +91,8 @@ function invoicePrefix(branchName) {
  */
 async function renumberDocuments(client, schema) {
   const s = quoteIdent(schema);
-  await client.query(`UPDATE ${s}.payments SET document_number = NULL WHERE document_number IS NOT NULL`);
+  // One UPDATE (rows are touched once), uniqueness checked at commit.
+  await client.query(`SET CONSTRAINTS ${s}.payments_document_number_key DEFERRED`);
   await client.query(`DELETE FROM ${s}.document_counters`);
   await client.query(`
     WITH cfg AS (SELECT invoice_prefix AS prefix FROM ${s}.settings ORDER BY created_at NULLS LAST LIMIT 1),
@@ -105,12 +106,15 @@ async function renumberDocuments(client, schema) {
     )
     UPDATE ${s}.payments p
        SET document_number = concat_ws('-', NULLIF((SELECT prefix FROM cfg), ''), numbered.ser, numbered.yr::text, lpad(numbered.n::text, 4, '0'))
-      FROM numbered WHERE numbered.id = p.id`);
+      FROM numbered WHERE numbered.id = p.id
+       AND p.document_number IS DISTINCT FROM concat_ws('-', NULLIF((SELECT prefix FROM cfg), ''), numbered.ser, numbered.yr::text, lpad(numbered.n::text, 4, '0'))`);
   await client.query(`
     INSERT INTO ${s}.document_counters (series, year, last)
     SELECT CASE WHEN document_type = 'credit_note' THEN 'R' ELSE 'F' END,
            EXTRACT(year FROM (paid_at AT TIME ZONE 'Europe/Madrid'))::int, count(*)
       FROM ${s}.payments WHERE type = 'incoming' GROUP BY 1, 2`);
+  // Check uniqueness now, so the transaction can go on altering the table.
+  await client.query(`SET CONSTRAINTS ${s}.payments_document_number_key IMMEDIATE`);
 }
 
 async function seedDefaults(client, schema, branchName) {

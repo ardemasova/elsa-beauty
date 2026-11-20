@@ -9,7 +9,9 @@
     "migrate": "node scripts/migrate.js",
     "create-account": "node scripts/create-account.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
-    "demo-template": "node scripts/demo-template.js"
+    "demo-template": "node scripts/demo-template.js",
+    "set-missing-vat": "node scripts/set-missing-vat.js",
+    "demo-data": "node scripts/demo-data.js"
   },
   "keywords": [],
   "author": "",

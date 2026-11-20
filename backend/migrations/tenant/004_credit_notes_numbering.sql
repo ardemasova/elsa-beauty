@@ -31,7 +31,14 @@ ALTER TABLE payments ADD CONSTRAINT payments_amount_check CHECK (
   OR (document_type = 'credit_note' AND amount < 0 AND refund_of IS NOT NULL AND type = 'incoming')
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS payments_document_number_unique ON payments (document_number);
+-- Unique, but checkable at the end of a transaction so a whole series can be
+-- renumbered in one statement (demo data, copied branches).
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'payments'::regclass AND conname = 'payments_document_number_key') THEN
+    ALTER TABLE payments ADD CONSTRAINT payments_document_number_key UNIQUE (document_number) DEFERRABLE INITIALLY IMMEDIATE;
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_payments_refund_of ON payments (refund_of);
 
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS invoice_prefix text;
