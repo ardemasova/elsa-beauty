@@ -16,8 +16,8 @@
  *    supplies) for months that have started.
  *  - Invoice numbers of the branch are re-issued in date order.
  *
- * Safe to run again: days already filled are skipped. Refuses to touch a
- * branch that is not a demo unless --force is given.
+ * Safe to run again: days already filled are skipped. Branches of a live
+ * (non-demo) account are refused unless --force is given.
  */
 const { pool } = require("../db");
 const { quoteIdent, isValidSchemaName } = require("../utils/sql");
@@ -69,11 +69,18 @@ const LAST = ["García", "Martínez", "López", "Sánchez", "Pérez", "Gómez", 
     `SELECT t.name, a.is_demo FROM public.tenants t JOIN public.accounts a ON a.id = t.account_id WHERE t.schema_name = $1`,
     [schemaName]
   );
-  const looksDemo = info.rows[0]?.is_demo || /demo/i.test(schemaName);
-  if (!info.rows.length && !/demo/i.test(schemaName)) throw new Error(`No branch with schema "${schemaName}"`);
-  if (!looksDemo && !process.argv.includes("--force")) {
-    throw new Error(`"${schemaName}" is not a demo branch. Use --force only if you are sure.`);
+  // The schema name proves nothing: only a demo account, or a schema that is
+  // not a live branch (e.g. the demo template), is filled without --force.
+  const schemaExists = await pool.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [schemaName]);
+  if (!schemaExists.rows.length) throw new Error(`No schema "${schemaName}"`);
+  const isDemo = !info.rows.length || info.rows[0].is_demo === true;
+  if (!isDemo && !process.argv.includes("--force")) {
+    throw new Error(
+      `"${schemaName}" (${info.rows[0].name}) belongs to a live account. ` +
+        `Fake visits and payments would appear in its reports. Add --force only if this branch is a demo.`
+    );
   }
+  if (!isDemo) console.warn(`--force: filling live branch "${info.rows[0].name}" with demo data`);
 
   const client = await pool.connect();
   const rand = rng(20261231);
@@ -92,11 +99,11 @@ const LAST = ["García", "Martínez", "López", "Sánchez", "Pérez", "Gómez", 
     const masters = (await client.query(`SELECT id FROM ${S}.masters WHERE is_active ORDER BY created_at`)).rows;
     const services = (await client.query(
       `SELECT id, duration, price FROM ${S}.services
-        WHERE is_active AND price > 0 AND lower(name) NOT LIKE '%day off%' AND duration BETWEEN 15 AND 240`
+        WHERE is_active AND price > 0 AND lower(name) NOT LIKE '%day off%' AND duration BETWEEN 15 AND 240 ORDER BY id`
     )).rows;
     if (!masters.length || !services.length) throw new Error("The branch needs at least one active master and one priced service");
 
-    let customers = (await client.query(`SELECT id FROM ${S}.clients WHERE type = 'customer'`)).rows;
+    let customers = (await client.query(`SELECT id FROM ${S}.clients WHERE type = 'customer' ORDER BY id`)).rows;
     while (customers.length < 40) {
       const name = `${pick(FIRST)} ${pick(LAST)}`;
       const phone = `6${String(Math.floor(rand() * 1e8)).padStart(8, "0")}`;
@@ -155,9 +162,11 @@ const LAST = ["García", "Martínez", "López", "Sánchez", "Pérez", "Gómez", 
     const due = await client.query(
       `SELECT a.id, a.client_id, a.end_time,
               a.price - COALESCE((SELECT sum(p.amount) FROM ${S}.payments p
-                                   WHERE p.appointment_id = a.id AND p.type = 'incoming'), 0) AS due
+                                   WHERE p.appointment_id = a.id AND p.type = 'incoming'
+                                     AND p.document_type = 'payment'), 0) AS due
          FROM ${S}.appointments a
-        WHERE a.status = 'completed' AND a.client_id IS NOT NULL AND a.end_time < now() AND a.price > 0`
+        WHERE a.status = 'completed' AND a.client_id IS NOT NULL AND a.end_time < now() AND a.price > 0
+        ORDER BY a.end_time, a.id`
     );
     for (const a of due.rows) {
       if (Number(a.due) <= 0.004) continue;
@@ -170,7 +179,7 @@ const LAST = ["García", "Martínez", "López", "Sánchez", "Pérez", "Gómez", 
     }
 
     // ---- product sales on past days -------------------------------------------
-    const items = (await client.query(`SELECT id, price FROM ${S}.items WHERE is_active AND price > 0`)).rows;
+    const items = (await client.query(`SELECT id, price FROM ${S}.items WHERE is_active AND price > 0 ORDER BY id`)).rows;
     if (items.length) {
       const pastDays = days.filter((d) => d < new Date().toISOString().slice(0, 10));
       for (const day of pastDays) {

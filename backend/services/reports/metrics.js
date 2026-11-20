@@ -294,7 +294,7 @@ async function byMaster(q, schema, period, tz) {
      ),
      pay AS (
        SELECT a.master_id, sum(p.amount) AS income_gross, sum(p.amount_net) AS income_net,
-              count(DISTINCT p.appointment_id) AS paid_visits
+              count(DISTINCT p.appointment_id) FILTER (WHERE p.document_type = 'payment') AS paid_visits
          FROM ${schema}.payments p
          JOIN ${schema}.appointments a ON a.id = p.appointment_id, r
         WHERE p.type = 'incoming' AND p.paid_at >= r.s AND p.paid_at < r.e

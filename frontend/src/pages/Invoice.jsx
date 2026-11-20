@@ -58,7 +58,13 @@ export default function Invoice() {
 
   // === UPDATED: get expense from invoice ===
   const { payment, partner, appointment, item, expense } = invoice;
-  const qty = Number(payment?.qty || 1);
+  // A partial credit note returns no units: show it as one line for the
+  // refunded amount instead of a misleading price per unit.
+  const partialCredit =
+    payment?.document_type === "credit_note" &&
+    payment.refund_of_amount != null &&
+    Math.abs(Math.abs(Number(payment.amount)) - Number(payment.refund_of_amount)) > 0.005;
+  const qty = partialCredit ? 1 : Number(payment?.qty || 1);
 
   // payment.amount is TOTAL incl VAT (per your Payments form label)
   const totalInclVat = Number(payment?.amount || 0);
@@ -123,6 +129,11 @@ export default function Invoice() {
                   <strong>Corrects invoice:</strong> {payment.refund_of_number}
                 </p>
               )}
+              {isCredit && payment.refund_of_date && (
+                <p>
+                  <strong>Invoice date:</strong> {new Date(payment.refund_of_date).toLocaleDateString("es-ES")}
+                </p>
+              )}
               <p>
                 <strong>Date:</strong> {new Date(payment.paid_at).toLocaleDateString("es-ES")}
               </p>
@@ -134,6 +145,7 @@ export default function Invoice() {
             <div className="bill-to">
               <h3>{isCredit ? "Refund to" : "Bill To"}</h3>
               <p className="partner-name">{partner.name}</p>
+              {partner.vat_number && <p>NIF: {partner.vat_number}</p>}
               {partner.address && <p>{partner.address}</p>}
               {partner.phone && <p>{partner.phone}</p>}
               {partner.email && <p>{partner.email}</p>}

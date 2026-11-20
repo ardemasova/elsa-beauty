@@ -43,11 +43,44 @@ CREATE INDEX IF NOT EXISTS idx_payments_refund_of ON payments (refund_of);
 
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS invoice_prefix text;
 
--- Default prefix: first 3 letters/digits of the branch name (e.g. "CEN").
-UPDATE settings s
-   SET invoice_prefix = NULLIF(upper(left(regexp_replace(t.name, '[^A-Za-z0-9]', '', 'g'), 3)), '')
-  FROM public.tenants t
- WHERE t.schema_name = current_schema() AND s.invoice_prefix IS NULL;
+-- Every branch needs a settings row (the numbering reads the prefix from it).
+INSERT INTO settings (name)
+SELECT t.name FROM public.tenants t
+ WHERE t.schema_name = current_schema() AND NOT EXISTS (SELECT 1 FROM settings);
+
+-- Default prefix: first 3 letters/digits of the branch name, made unique
+-- among the branches of the same company ("LOL", "LOL2", ...): branches share
+-- one NIF, so their invoice series must never produce the same number.
+DO $$
+DECLARE
+  base text;
+  cand text;
+  acc uuid;
+  k integer := 1;
+  taken boolean;
+  other record;
+BEGIN
+  IF EXISTS (SELECT 1 FROM settings WHERE invoice_prefix IS NOT NULL) THEN RETURN; END IF;
+  SELECT NULLIF(upper(left(regexp_replace(name, '[^A-Za-z0-9]', '', 'g'), 3)), ''), account_id
+    INTO base, acc FROM public.tenants WHERE schema_name = current_schema();
+  base := COALESCE(base, 'B');
+  cand := base;
+  LOOP
+    taken := false;
+    FOR other IN SELECT schema_name FROM public.tenants WHERE account_id = acc AND schema_name <> current_schema() LOOP
+      IF EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = other.schema_name AND table_name = 'settings' AND column_name = 'invoice_prefix') THEN
+        EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I.settings WHERE upper(invoice_prefix) = $1)', other.schema_name)
+           INTO taken USING cand;
+        EXIT WHEN taken;
+      END IF;
+    END LOOP;
+    EXIT WHEN NOT taken;
+    k := k + 1;
+    cand := left(base, 5) || k;
+  END LOOP;
+  UPDATE settings SET invoice_prefix = cand;
+END $$;
 
 CREATE TABLE IF NOT EXISTS document_counters (
     series text NOT NULL,      -- 'F' invoices, 'R' credit notes
@@ -82,7 +115,7 @@ BEGIN
      ON CONFLICT (series, year) DO UPDATE SET last = %I.document_counters.last + 1
      RETURNING last', TG_TABLE_SCHEMA, TG_TABLE_SCHEMA)
      INTO n USING ser, yr;
-  NEW.document_number := concat_ws('-', NULLIF(prefix, ''), ser, yr::text, lpad(n::text, 4, '0'));
+  NEW.document_number := concat_ws('-', NULLIF(prefix, ''), ser, yr::text, lpad(n::text, greatest(4, length(n::text)), '0'));
   RETURN NEW;
 END $$;
 
@@ -108,7 +141,7 @@ BEGIN
      WHERE type = 'incoming' AND document_number IS NULL AND document_type = 'payment'
   )
   UPDATE payments p
-     SET document_number = concat_ws('-', NULLIF(prefix, ''), 'F', numbered.yr::text, lpad(numbered.n::text, 4, '0'))
+     SET document_number = concat_ws('-', NULLIF(prefix, ''), 'F', numbered.yr::text, lpad(numbered.n::text, greatest(4, length(numbered.n::text)), '0'))
     FROM numbered
    WHERE numbered.id = p.id;
 

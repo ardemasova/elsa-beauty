@@ -1,6 +1,7 @@
 const express = require("express");
 const db = require("../db");
 const { authenticateToken, requireAdmin } = require("../middleware/auth");
+const { usedPrefixes } = require("../services/provisioning");
 const { resolveTenantSchema } = require("../utils/tenant");
 
 const router = express.Router();
@@ -29,6 +30,7 @@ router.get("/company", authenticateToken, async (req, res) => {
         timezone,
         invoice_prefix
       FROM ${schema}.settings
+      ORDER BY created_at NULLS LAST
       LIMIT 1
       `
     );
@@ -88,8 +90,37 @@ router.put("/company", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const schema = await resolveTenantSchema(req);
 
+    if (prefixGiven) {
+      const cur = await db.query(`SELECT invoice_prefix FROM ${schema}.settings ORDER BY created_at NULLS LAST LIMIT 1`);
+      const current = (cur.rows[0]?.invoice_prefix || "").toUpperCase();
+      if (invoicePrefix !== current) {
+        // Branches of one company share a NIF: their series must differ.
+        const others = await db.query(
+          `SELECT count(*)::int AS n FROM public.tenants WHERE account_id = $1 AND is_active AND id <> $2`,
+          [req.user.accountId, req.tenant.id]
+        );
+        if (!invoicePrefix && others.rows[0].n > 0) {
+          return res.status(400).json({ message: "With several branches every branch needs its own invoice prefix" });
+        }
+        if (invoicePrefix && (await usedPrefixes(db, req.user.accountId, req.tenant.schema)).has(invoicePrefix)) {
+          return res.status(409).json({ message: `Prefix ${invoicePrefix} is already used by another branch` });
+        }
+        // A series cannot change in the middle of a year once invoices exist.
+        const issued = await db.query(
+          `SELECT count(*)::int AS n FROM ${schema}.payments
+            WHERE document_number IS NOT NULL
+              AND date_trunc('year', paid_at AT TIME ZONE 'Europe/Madrid') = date_trunc('year', now() AT TIME ZONE 'Europe/Madrid')`
+        );
+        if (issued.rows[0].n > 0) {
+          return res.status(409).json({
+            message: "Invoices have already been issued this year with the current prefix. It can be changed from 1 January.",
+          });
+        }
+      }
+    }
+
     // Проверяем есть ли уже запись
-    const checkResult = await db.query(`SELECT id FROM ${schema}.settings LIMIT 1`);
+    const checkResult = await db.query(`SELECT id FROM ${schema}.settings ORDER BY created_at NULLS LAST LIMIT 1`);
 
     let result;
 

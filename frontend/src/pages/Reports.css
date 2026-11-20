@@ -216,7 +216,9 @@
 .rp-print-header,
 .rp-print-only { display: none; }
 
-@page {
+/* A named page, so only the report prints in landscape; invoices keep
+   their own portrait page. */
+@page report {
   size: A4 landscape;
   margin: 14mm 12mm 14mm;
 }
@@ -232,6 +234,7 @@
   html, body { background: #fff !important; }
 
   .rp {
+    page: report;
     padding: 0;
     max-width: none;
     font-size: 11px;

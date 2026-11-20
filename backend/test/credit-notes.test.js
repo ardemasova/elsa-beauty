@@ -157,10 +157,68 @@ test("reports: refunds lower income of the month; the visit does not become unpa
   assert.equal(m.find((x) => x.name === "Eva").income_gross, 0);
 });
 
-test("invoice prefix can be changed in settings", async () => {
-  const r = await api("PUT", "/api/settings/company", { body: { name: "Lola Centro", invoice_prefix: "lc1" } });
-  assert.equal(r.status, 200, JSON.stringify(r.data));
-  const p = await pay({ partner_id: ids.c, item_id: ids.item, qty: 1, amount: 12.1, type: "incoming" });
-  assert.equal((await one(`SELECT document_number FROM ${S}.payments WHERE id = $1`, [p.data.id])).document_number, `LC1-F-${year}-0012`);
+test("invoice prefix: format checked; frozen once this year's invoices exist", async () => {
   assert.equal((await api("PUT", "/api/settings/company", { body: { name: "Lola Centro", invoice_prefix: "LC-1" } })).status, 400);
+  const r = await api("PUT", "/api/settings/company", { body: { name: "Lola Centro", invoice_prefix: "lc1" } });
+  assert.equal(r.status, 409, JSON.stringify(r.data));
+  // saving the same prefix again (other settings changed) is fine
+  assert.equal((await api("PUT", "/api/settings/company", { body: { name: "Lola Centro", invoice_prefix: "LOL" } })).status, 200);
+});
+
+test("a second branch of the account gets its own prefix, and cannot take another branch's", async () => {
+  const { createTenant } = require("../services/provisioning");
+  // a private unlimited plan, so other test files keep the real limits
+  const plan = await one(
+    `INSERT INTO public.plans (code, name, max_branches, max_masters, max_users)
+     SELECT 'test-unlimited', 'Test', NULL, max_masters, max_users FROM public.plans
+      WHERE id = (SELECT plan_id FROM public.accounts WHERE id = $1) RETURNING id`,
+    [tenant.account_id]
+  );
+  await db.query(`UPDATE public.accounts SET plan_id = $1 WHERE id = $2`, [plan.id, tenant.account_id]);
+  const t2 = await createTenant({ accountId: tenant.account_id, name: "Lola Norte" });
+  const p2 = (await one(`SELECT invoice_prefix FROM "${t2.schema_name}".settings LIMIT 1`)).invoice_prefix;
+  assert.equal(p2, "LOL2");
+  const r = await api("PUT", "/api/settings/company", { body: { name: "Lola Centro", invoice_prefix: "LOL2" } });
+  assert.equal(r.status, 409);
+});
+
+test("numbers past 9999 are not cut", async () => {
+  await db.query(`UPDATE ${S}.document_counters SET last = 9999 WHERE series = 'F' AND year = $1`, [Number(year)]);
+  const p = await pay({ partner_id: ids.c, item_id: ids.item, qty: 1, amount: 12.1, type: "incoming" });
+  assert.equal((await one(`SELECT document_number FROM ${S}.payments WHERE id = $1`, [p.data.id])).document_number, `LOL-F-${year}-10000`);
+});
+
+test("an issued invoice keeps its content: no amount, client or direction change", async () => {
+  const body = { partner_id: ids.c, item_id: ids.item, qty: 2, amount: 24.2, vat_percent: 21, method: "Card", type: "incoming" };
+  assert.equal((await api("PUT", `/api/payments/${ids.inv2}`, { body: { ...body, qty: 3 } })).status, 409);
+  assert.equal((await api("PUT", `/api/payments/${ids.inv2}`, { body: { ...body, vat_percent: 10 } })).status, 409);
+  assert.equal((await api("PUT", `/api/payments/${ids.inv2}`, { body: { ...body, type: "outgoing" } })).status, 409);
+  assert.equal((await api("PUT", `/api/payments/${ids.inv2}`, { body: { ...body, method: "Cash" } })).status, 200);
+});
+
+test("a supplier payment cannot turn into a customer payment", async () => {
+  const v = (await db.query(`SELECT id FROM ${S}.payments WHERE type = 'outgoing' LIMIT 1`)).rows[0].id;
+  const r = await api("PUT", `/api/payments/${v}`, { body: { partner_id: ids.v, expense_id: ids.exp, amount: 500, vat_percent: 21, method: "Card", type: "incoming" } });
+  assert.equal(r.status, 409);
+});
+
+test("partial refunds that add up to the whole sale return all units", async () => {
+  const sale = await pay({ partner_id: ids.c, item_id: ids.item, qty: 3, amount: 36.3, type: "incoming" });
+  const a = await api("POST", `/api/payments/${sale.data.id}/credit-note`, { body: { amount: 10, reason: "damaged" } });
+  const b = await api("POST", `/api/payments/${sale.data.id}/credit-note`, { body: { reason: "returned" } });
+  assert.equal(a.status, 201);
+  assert.equal(b.status, 201);
+  const q = (await db.query(`SELECT qty FROM ${S}.payments WHERE refund_of = $1 ORDER BY paid_at, id`, [sale.data.id])).rows.map((r) => Number(r.qty));
+  assert.deepEqual(q, [0, -3]);
+  // amounts that round to nothing are refused
+  const tiny = await pay({ partner_id: ids.c, item_id: ids.item, qty: 1, amount: 12.1, type: "incoming" });
+  assert.equal((await api("POST", `/api/payments/${tiny.data.id}/credit-note`, { body: { amount: 0.001, reason: "x" } })).status, 400);
+});
+
+test("an invoice older than 24 hours cannot be deleted", async () => {
+  const p = await pay({ partner_id: ids.c, item_id: ids.item, qty: 1, amount: 12.1, type: "incoming" });
+  await db.query(`UPDATE ${S}.payments SET paid_at = now() - interval '2 days' WHERE id = $1`, [p.data.id]);
+  const r = await api("DELETE", `/api/payments/${p.data.id}`);
+  assert.equal(r.status, 409);
+  assert.match(r.data.message, /24 hours/);
 });

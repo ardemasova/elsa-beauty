@@ -262,7 +262,8 @@ router.post("/", authenticateToken, requireFeature('payments'), async (req, res)
         await client.query(`SELECT 1 FROM ${schema}.appointments WHERE id = $1 FOR UPDATE`, [appointment_id]);
         const due = await client.query(
           `SELECT a.price - COALESCE((SELECT sum(amount) FROM ${schema}.payments
-                                       WHERE appointment_id = a.id AND type = 'incoming'), 0) AS due
+                                       WHERE appointment_id = a.id AND type = 'incoming'
+                                         AND document_type = 'payment'), 0) AS due
              FROM ${schema}.appointments a WHERE a.id = $1`,
           [appointment_id]
         );
@@ -334,12 +335,13 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
   try {
     const schema = await resolveTenantSchema(req);
 
-    // Numbered documents follow invoicing rules: a credit note is never edited,
-    // and an invoice that has been (partly) refunded keeps its amounts.
+    // Invoicing rules. An issued (numbered) invoice is a legal document: only
+    // the payment method may still be corrected. Any other change is made by
+    // issuing a credit note. Credit notes themselves are never edited, and no
+    // payment changes direction (incoming <-> outgoing).
     const cur = await db.query(
       `SELECT document_type, document_number, type, partner_id, amount, vat_percent,
-              appointment_id, item_id, expense_id,
-              (SELECT count(*)::int FROM ${schema}.payments r WHERE r.refund_of = p.id) AS credit_notes
+              appointment_id, item_id, expense_id, qty
          FROM ${schema}.payments p WHERE p.id = $1`,
       [id]
     );
@@ -347,10 +349,10 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
     if (c?.document_type === "credit_note") {
       return res.status(409).json({ message: "A credit note cannot be edited. Issue a new credit note instead." });
     }
-    if (c?.document_number && type !== c.type) {
-      return res.status(409).json({ message: "The direction of a numbered invoice cannot be changed" });
+    if (c && type !== c.type) {
+      return res.status(409).json({ message: "A payment cannot change direction. Delete it and record a new one." });
     }
-    if (c?.credit_notes > 0) {
+    if (c?.document_number) {
       const same = (x, y) => String(x ?? "") === String(y ?? "");
       const changed =
         Math.abs(Number(amount) - Number(c.amount)) > 0.001 ||
@@ -358,9 +360,12 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
         !same(partner_id, c.partner_id) ||
         !same(hasAppointment ? appointment_id : null, c.appointment_id) ||
         !same(hasItem ? item_id : null, c.item_id) ||
-        !same(hasExpense ? expense_id : null, c.expense_id);
+        !same(hasExpense ? expense_id : null, c.expense_id) ||
+        Number(finalQty) !== Number(c.qty);
       if (changed) {
-        return res.status(409).json({ message: "This invoice has a credit note: only the payment method can still be changed" });
+        return res.status(409).json({
+          message: `Invoice ${c.document_number} has been issued: only the payment method can be changed. To correct it, issue a credit note.`,
+        });
       }
     }
 
@@ -424,6 +429,8 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
           method = $8,
           type = $9
       WHERE id = $10
+        AND type = $9 AND document_type = 'payment'
+        AND (document_number IS NULL OR (amount = $6 AND partner_id IS NOT DISTINCT FROM $1)) -- issued invoices keep their content
       RETURNING 
         id, partner_id, appointment_id, item_id, expense_id, qty, amount, vat_percent, method, type, paid_at
       `,
@@ -440,6 +447,8 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
         id,
       ]
     );
+    // Someone issued or refunded it in the meantime.
+    if (!rows.length) return res.status(409).json({ message: "This payment changed while you were editing it. Reload and try again." });
     res.json(rows[0]);
   } catch (err) {
     console.error("UPDATE PAYMENT ERROR:", err);
@@ -492,6 +501,16 @@ router.delete("/:id", authenticateToken, requireFeature('payments'), async (req,
               [series, Number(m[1])]
             )
           : { rows: [] };
+        const fresh = await client.query(
+          `SELECT paid_at > now() - interval '24 hours' AS fresh FROM ${schema}.payments WHERE id = $1`,
+          [id]
+        );
+        if (!fresh.rows[0]?.fresh) {
+          return {
+            status: 409,
+            message: `Invoice ${doc.document_number} was issued more than 24 hours ago and cannot be deleted. Issue a credit note instead.`,
+          };
+        }
         if (!m || counter.rows[0]?.last !== Number(m[2])) {
           return {
             status: 409,
@@ -499,6 +518,7 @@ router.delete("/:id", authenticateToken, requireFeature('payments'), async (req,
           };
         }
         await client.query(`UPDATE ${schema}.document_counters SET last = last - 1 WHERE series = $1 AND year = $2`, [series, Number(m[1])]);
+        console.warn(`Invoice ${doc.document_number} withdrawn by user ${req.user.id} (${req.user.email})`);
       }
       await client.query(`DELETE FROM ${schema}.payments WHERE id = $1`, [id]);
       return { status: 200, message: "Payment deleted successfully" };
@@ -522,8 +542,9 @@ router.post("/:id/credit-note", authenticateToken, requireFeature('payments'), a
   if (method !== undefined && !["Card", "Cash"].includes(method)) {
     return res.status(400).json({ message: 'method must be "Card" or "Cash"' });
   }
-  const requested = req.body?.amount === undefined || req.body?.amount === "" ? null : Number(req.body.amount);
-  if (requested !== null && !(requested > 0)) return res.status(400).json({ message: "amount must be a positive number" });
+  const raw = req.body?.amount === undefined || req.body?.amount === "" ? null : Number(req.body.amount);
+  const requested = raw === null ? null : Math.round(raw * 100) / 100;
+  if (requested !== null && !(requested >= 0.01)) return res.status(400).json({ message: "amount must be at least 0.01" });
 
   try {
     const schema = await resolveTenantSchema(req);
@@ -535,7 +556,8 @@ router.post("/:id/credit-note", authenticateToken, requireFeature('payments'), a
         return { status: 400, body: { message: "Credit notes can only be issued for payments received from customers" } };
       }
       const done = await client.query(
-        `SELECT COALESCE(-sum(amount), 0) AS refunded FROM ${schema}.payments WHERE refund_of = $1`,
+        `SELECT COALESCE(-sum(amount), 0) AS refunded, COALESCE(-sum(qty), 0) AS returned_qty
+           FROM ${schema}.payments WHERE refund_of = $1`,
         [inv.id]
       );
       const refundable = Math.round((Number(inv.amount) - Number(done.rows[0].refunded)) * 100) / 100;
@@ -544,7 +566,15 @@ router.post("/:id/credit-note", authenticateToken, requireFeature('payments'), a
       if (amount - refundable > 0.005) {
         return { status: 400, body: { message: `At most ${refundable.toFixed(2)} can still be refunded on this invoice` } };
       }
-      const full = Math.abs(amount - Number(inv.amount)) < 0.005;
+      // Quantity goes back only when the invoice ends up fully refunded, so
+      // several partial refunds that add up to the whole sale return it all.
+      const closesInvoice = Math.abs(amount - refundable) < 0.005;
+      const qtyBack = closesInvoice ? -(Number(inv.qty) - Number(done.rows[0].returned_qty)) : 0;
+      // Legacy rows may point to a deleted item or use an old payment method.
+      const itemExists = inv.item_id
+        ? (await client.query(`SELECT 1 FROM ${schema}.items WHERE id = $1`, [inv.item_id])).rows.length > 0
+        : false;
+      const refundMethod = method || (["Card", "Cash"].includes(inv.method) ? inv.method : "Card");
       const ins = await client.query(
         `INSERT INTO ${schema}.payments
            (partner_id, appointment_id, item_id, qty, amount, vat_percent, method, type,
@@ -554,11 +584,11 @@ router.post("/:id/credit-note", authenticateToken, requireFeature('payments'), a
         [
           inv.partner_id,
           inv.appointment_id,
-          inv.item_id,
-          full ? -inv.qty : 0, // a full refund also returns the quantity sold
+          itemExists ? inv.item_id : null,
+          qtyBack,
           -amount,
           inv.vat_percent,
-          method || inv.method,
+          refundMethod,
           inv.id,
           reason,
           inv.unit_cost,
@@ -602,11 +632,14 @@ router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async 
         p.refund_of,
         p.reason,
         (SELECT o.document_number FROM ${schema}.payments o WHERE o.id = p.refund_of) AS refund_of_number,
+        (SELECT o.paid_at FROM ${schema}.payments o WHERE o.id = p.refund_of) AS refund_of_date,
+        (SELECT o.amount FROM ${schema}.payments o WHERE o.id = p.refund_of) AS refund_of_amount,
         COALESCE((SELECT -sum(r.amount) FROM ${schema}.payments r WHERE r.refund_of = p.id), 0) AS refunded,
         c.name as partner_name,
         c.email as partner_email,
         c.phone as partner_phone,
         c.address as partner_address,
+        c.vat_number as partner_vat_number,
         c.type as partner_type,
         i.name as item_name,
         i.unit as item_unit,
@@ -709,6 +742,8 @@ router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async 
         document_number: payment.document_number,
         refund_of: payment.refund_of,
         refund_of_number: payment.refund_of_number,
+        refund_of_date: payment.refund_of_date,
+        refund_of_amount: payment.refund_of_amount !== null && payment.refund_of_amount !== undefined ? Number(payment.refund_of_amount) : null,
         refunded: Number(payment.refunded || 0),
         reason: payment.reason,
         vat_amount: payment.vat_amount !== undefined ? Number(payment.vat_amount) : undefined,
@@ -719,6 +754,7 @@ router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async 
         email: payment.partner_email,
         phone: payment.partner_phone,
         address: payment.partner_address,
+        vat_number: payment.partner_vat_number,
         type: payment.partner_type,
       },
       appointment,
