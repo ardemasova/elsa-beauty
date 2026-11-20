@@ -52,3 +52,14 @@ export const deletePayment = async (token, id) => {
   if (!response.ok) throw new Error("Failed to delete payment");
   return response.json();
 };
+/** Refund all (amount omitted) or part of a customer invoice. */
+export const createCreditNote = async (token, paymentId, { amount, method, reason }) => {
+  const response = await fetch(`${API_BASE}/payments/${paymentId}/credit-note`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ amount: amount === "" ? undefined : amount, method, reason }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || "Failed to create credit note");
+  return data;
+};

@@ -144,7 +144,7 @@ test("overview for March matches the hand calculation", async () => {
   assert.equal(r.data.period.currency, "EUR");
 
   // income: 50 + 100 + 48.40 + 24.20 (the 1 Mar 00:30 sale), NOT the 1 Apr payment
-  assert.deepEqual(c.income, { gross: 222.6, net: 183.96, vat: 38.64, payments: 4, services: 150, items: 72.6, other: 0, without_vat_rate: 0 });
+  assert.deepEqual(c.income, { gross: 222.6, net: 183.96, vat: 38.64, payments: 4, services: 150, items: 72.6, other: 0, without_vat_rate: 0, refunds: 0, refunds_count: 0 });
   assert.deepEqual(c.expenses, { gross: 1210, net: 1000, vat: 210, payments: 1 });
 
   // visits: a1 + a2 completed (a4 is in April, a5 is a day off)

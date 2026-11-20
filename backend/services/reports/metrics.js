@@ -19,6 +19,9 @@
  *  - Day-off entries (appointments without a client) are not visits and are
  *    excluded everywhere.
  *  - VAT is split per payment and rounded to cents (as on the receipt).
+ *  - Credit notes (refunds) are negative incoming payments: they lower income
+ *    in the month they are issued. They do not make a completed visit
+ *    "unpaid" again (a refund on a done visit is a price reduction).
  *
  * All functions take a query runner `q` (db or a client) and a QUOTED schema.
  */
@@ -133,7 +136,7 @@ async function overview(q, schema, period, opts = {}) {
      done AS MATERIALIZED (
        -- completed visits with everything paid for them (any date)
        SELECT ap.id, ap.price,
-              COALESCE(sum(p.amount) FILTER (WHERE p.type = 'incoming'), 0) AS paid
+              COALESCE(sum(p.amount) FILTER (WHERE p.type = 'incoming' AND p.document_type = 'payment'), 0) AS paid
          FROM ap
          LEFT JOIN ${schema}.payments p ON p.appointment_id = ap.id
         WHERE ap.status = 'completed'
@@ -143,11 +146,13 @@ async function overview(q, schema, period, opts = {}) {
        (SELECT COALESCE(sum(amount), 0)      FROM pay WHERE type = 'incoming') AS income_gross,
        (SELECT COALESCE(sum(amount_net), 0)  FROM pay WHERE type = 'incoming') AS income_net,
        (SELECT COALESCE(sum(vat_amount), 0)  FROM pay WHERE type = 'incoming') AS income_vat,
-       (SELECT count(*)                      FROM pay WHERE type = 'incoming') AS income_count,
+       (SELECT count(*) FROM pay WHERE type = 'incoming' AND document_type = 'payment') AS income_count,
+       (SELECT COALESCE(-sum(amount), 0) FROM pay WHERE document_type = 'credit_note') AS refunds,
+       (SELECT count(*) FROM pay WHERE document_type = 'credit_note') AS refunds_count,
        (SELECT COALESCE(sum(amount), 0) FROM pay WHERE type = 'incoming' AND appointment_id IS NOT NULL) AS income_services,
        (SELECT COALESCE(sum(amount), 0) FROM pay WHERE type = 'incoming' AND item_id IS NOT NULL)        AS income_items,
        (SELECT COALESCE(sum(amount), 0) FROM pay WHERE type = 'incoming' AND appointment_id IS NULL AND item_id IS NULL) AS income_other,
-       (SELECT count(DISTINCT appointment_id) FROM pay WHERE type = 'incoming' AND appointment_id IS NOT NULL) AS paid_visits,
+       (SELECT count(DISTINCT appointment_id) FROM pay WHERE type = 'incoming' AND document_type = 'payment' AND appointment_id IS NOT NULL) AS paid_visits,
        (SELECT COALESCE(sum(amount_net - COALESCE(unit_cost, 0) * qty), 0)
           FROM pay WHERE type = 'incoming' AND item_id IS NOT NULL) AS items_margin,
 
@@ -189,6 +194,8 @@ async function overview(q, schema, period, opts = {}) {
       items: n(r.income_items),
       other: n(r.income_other),
       without_vat_rate: n(r.income_no_vat_rate), // counted as 0% VAT
+      refunds: n(r.refunds), // credit notes issued in the period (already subtracted above)
+      refunds_count: i(r.refunds_count),
     },
     services: {
       completed: i(r.completed),
@@ -484,7 +491,7 @@ async function receivables(q, schema, period, tz) {
      ),
      paid AS (
        SELECT appointment_id, sum(amount) AS paid FROM ${schema}.payments
-        WHERE type = 'incoming' AND appointment_id IN (SELECT id FROM ap)
+        WHERE type = 'incoming' AND document_type = 'payment' AND appointment_id IN (SELECT id FROM ap)
         GROUP BY appointment_id
      )
      SELECT ap.id AS appointment_id, to_char(ap.start_time AT TIME ZONE $3, 'YYYY-MM-DD HH24:MI') AS date,

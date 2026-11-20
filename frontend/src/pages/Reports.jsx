@@ -73,7 +73,7 @@ const TABS = {
       {
         key: "date",
         label: "Visit",
-        render: (r) => new Date(r.date.replace(" ", "T")).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }),
+        render: (r) => (r.date ? new Date(r.date.replace(" ", "T")).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }) : "—"),
       },
       { key: "client_name", label: "Client" },
       { key: "client_phone", label: "Phone" },
@@ -197,7 +197,10 @@ function AdminReports({ session }) {
   const pkey = `${period.from}|${period.to}`;
   const overview = useAsync(() => getOverview(period), pkey);
   const days = useAsync(() => getBreakdown("day", period).then((d) => d.rows), pkey);
-  const table = useAsync(() => TABS[tab].load(period), `${tab}|${pkey}`);
+  // Rows are tagged with the tab they belong to: while another tab is loading
+  // the previous tab's rows must not be drawn with the new tab's columns.
+  const tableRaw = useAsync(() => TABS[tab].load(period).then((rows) => ({ tab, rows })), `${tab}|${pkey}`);
+  const table = { ...tableRaw, data: tableRaw.data?.tab === tab ? tableRaw.data.rows : null };
 
   const currency = overview.data?.period?.currency || "EUR";
   const branchName = session?.currentTenant?.name;

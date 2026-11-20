@@ -30,6 +30,12 @@ router.get("/", authenticateToken, requireFeature('payments'), async (req, res) 
         p.method,
         p.type,
         p.paid_at,
+        p.document_type,
+        p.document_number,
+        p.refund_of,
+        p.reason,
+        (SELECT o.document_number FROM ${schema}.payments o WHERE o.id = p.refund_of) AS refund_of_number,
+        COALESCE((SELECT -sum(r.amount) FROM ${schema}.payments r WHERE r.refund_of = p.id), 0) AS refunded,
         a.start_time as appointment_start_time,
         m.name as master_name,
         c.name as partner_name,
@@ -92,6 +98,12 @@ router.get("/:id", authenticateToken, requireFeature('payments'), async (req, re
         p.method,
         p.type,
         p.paid_at,
+        p.document_type,
+        p.document_number,
+        p.refund_of,
+        p.reason,
+        (SELECT o.document_number FROM ${schema}.payments o WHERE o.id = p.refund_of) AS refund_of_number,
+        COALESCE((SELECT -sum(r.amount) FROM ${schema}.payments r WHERE r.refund_of = p.id), 0) AS refunded,
         a.start_time as appointment_start_time,
         m.name as master_name,
         c.name as partner_name,
@@ -322,6 +334,36 @@ router.put("/:id", authenticateToken, requireFeature('payments'), async (req, re
   try {
     const schema = await resolveTenantSchema(req);
 
+    // Numbered documents follow invoicing rules: a credit note is never edited,
+    // and an invoice that has been (partly) refunded keeps its amounts.
+    const cur = await db.query(
+      `SELECT document_type, document_number, type, partner_id, amount, vat_percent,
+              appointment_id, item_id, expense_id,
+              (SELECT count(*)::int FROM ${schema}.payments r WHERE r.refund_of = p.id) AS credit_notes
+         FROM ${schema}.payments p WHERE p.id = $1`,
+      [id]
+    );
+    const c = cur.rows[0];
+    if (c?.document_type === "credit_note") {
+      return res.status(409).json({ message: "A credit note cannot be edited. Issue a new credit note instead." });
+    }
+    if (c?.document_number && type !== c.type) {
+      return res.status(409).json({ message: "The direction of a numbered invoice cannot be changed" });
+    }
+    if (c?.credit_notes > 0) {
+      const same = (x, y) => String(x ?? "") === String(y ?? "");
+      const changed =
+        Math.abs(Number(amount) - Number(c.amount)) > 0.001 ||
+        !same(vat === null ? null : Number(vat), c.vat_percent === null ? null : Number(c.vat_percent)) ||
+        !same(partner_id, c.partner_id) ||
+        !same(hasAppointment ? appointment_id : null, c.appointment_id) ||
+        !same(hasItem ? item_id : null, c.item_id) ||
+        !same(hasExpense ? expense_id : null, c.expense_id);
+      if (changed) {
+        return res.status(409).json({ message: "This invoice has a credit note: only the payment method can still be changed" });
+      }
+    }
+
     // Check payment exists + master ownership
     const checkPayment = await db.query(
       `
@@ -427,10 +469,106 @@ router.delete("/:id", authenticateToken, requireFeature('payments'), async (req,
     if (checkPayment.rows.length === 0) return res.status(404).json({ message: "Payment not found" });
     // Deleting financial records is reserved for admins.
     if (role !== "admin") return res.status(403).json({ message: "Only an admin can delete payments" });
-    await db.query(`DELETE FROM ${schema}.payments WHERE id = $1`, [id]);
-    res.json({ message: "Payment deleted successfully" });
+
+    const result = await db.withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `SELECT document_type, document_number,
+                EXISTS (SELECT 1 FROM ${schema}.payments r WHERE r.refund_of = p.id) AS has_credit_notes
+           FROM ${schema}.payments p WHERE p.id = $1 FOR UPDATE`,
+        [id]
+      );
+      const doc = rows[0];
+      if (doc.has_credit_notes) {
+        return { status: 409, message: "This invoice has a credit note and cannot be deleted" };
+      }
+      if (doc.document_number) {
+        // Numbered invoices must stay correlative: only the latest number of
+        // its series can be withdrawn (e.g. one created by mistake just now).
+        const m = /(\d{4})-(\d{4,})$/.exec(doc.document_number);
+        const series = doc.document_type === "credit_note" ? "R" : "F";
+        const counter = m
+          ? await client.query(
+              `SELECT last FROM ${schema}.document_counters WHERE series = $1 AND year = $2 FOR UPDATE`,
+              [series, Number(m[1])]
+            )
+          : { rows: [] };
+        if (!m || counter.rows[0]?.last !== Number(m[2])) {
+          return {
+            status: 409,
+            message: `Invoice ${doc.document_number} is not the latest one and cannot be deleted. Issue a credit note instead.`,
+          };
+        }
+        await client.query(`UPDATE ${schema}.document_counters SET last = last - 1 WHERE series = $1 AND year = $2`, [series, Number(m[1])]);
+      }
+      await client.query(`DELETE FROM ${schema}.payments WHERE id = $1`, [id]);
+      return { status: 200, message: "Payment deleted successfully" };
+    });
+    res.status(result.status).json({ message: result.message });
   } catch (err) {
     console.error("DELETE PAYMENT ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/payments/:id/credit-note  { amount?, method?, reason }   (admin)
+// Refunds all or part of a customer invoice. Creates a credit note: a payment
+// with a negative amount, its own number series and a link to the invoice.
+router.post("/:id/credit-note", authenticateToken, requireFeature('payments'), async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can issue credit notes" });
+  const reason = String(req.body?.reason || "").trim();
+  if (!reason) return res.status(400).json({ message: "Please give a reason for the credit note" });
+  if (reason.length > 500) return res.status(400).json({ message: "Reason is too long (max 500 characters)" });
+  const method = req.body?.method;
+  if (method !== undefined && !["Card", "Cash"].includes(method)) {
+    return res.status(400).json({ message: 'method must be "Card" or "Cash"' });
+  }
+  const requested = req.body?.amount === undefined || req.body?.amount === "" ? null : Number(req.body.amount);
+  if (requested !== null && !(requested > 0)) return res.status(400).json({ message: "amount must be a positive number" });
+
+  try {
+    const schema = await resolveTenantSchema(req);
+    const result = await db.withTransaction(async (client) => {
+      const { rows } = await client.query(`SELECT * FROM ${schema}.payments WHERE id = $1 FOR UPDATE`, [req.params.id]);
+      const inv = rows[0];
+      if (!inv) return { status: 404, body: { message: "Payment not found" } };
+      if (inv.type !== "incoming" || inv.document_type !== "payment") {
+        return { status: 400, body: { message: "Credit notes can only be issued for payments received from customers" } };
+      }
+      const done = await client.query(
+        `SELECT COALESCE(-sum(amount), 0) AS refunded FROM ${schema}.payments WHERE refund_of = $1`,
+        [inv.id]
+      );
+      const refundable = Math.round((Number(inv.amount) - Number(done.rows[0].refunded)) * 100) / 100;
+      if (refundable <= 0) return { status: 409, body: { message: "This invoice has already been refunded in full" } };
+      const amount = requested === null ? refundable : Math.round(requested * 100) / 100;
+      if (amount - refundable > 0.005) {
+        return { status: 400, body: { message: `At most ${refundable.toFixed(2)} can still be refunded on this invoice` } };
+      }
+      const full = Math.abs(amount - Number(inv.amount)) < 0.005;
+      const ins = await client.query(
+        `INSERT INTO ${schema}.payments
+           (partner_id, appointment_id, item_id, qty, amount, vat_percent, method, type,
+            document_type, refund_of, reason, unit_cost, paid_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'incoming', 'credit_note', $8, $9, $10, NOW())
+         RETURNING id, document_number, amount, vat_amount, amount_net, refund_of, reason, paid_at`,
+        [
+          inv.partner_id,
+          inv.appointment_id,
+          inv.item_id,
+          full ? -inv.qty : 0, // a full refund also returns the quantity sold
+          -amount,
+          inv.vat_percent,
+          method || inv.method,
+          inv.id,
+          reason,
+          inv.unit_cost,
+        ]
+      );
+      return { status: 201, body: { ...ins.rows[0], refund_of_number: inv.document_number } };
+    });
+    res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("CREATE CREDIT NOTE ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -454,9 +592,17 @@ router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async 
         p.qty,
         p.amount,
         p.vat_percent,
+        p.vat_amount,
+        p.amount_net,
         p.method,
         p.type,
         p.paid_at,
+        p.document_type,
+        p.document_number,
+        p.refund_of,
+        p.reason,
+        (SELECT o.document_number FROM ${schema}.payments o WHERE o.id = p.refund_of) AS refund_of_number,
+        COALESCE((SELECT -sum(r.amount) FROM ${schema}.payments r WHERE r.refund_of = p.id), 0) AS refunded,
         c.name as partner_name,
         c.email as partner_email,
         c.phone as partner_phone,
@@ -559,6 +705,14 @@ router.get("/:id/invoice", authenticateToken, requireFeature('payments'), async 
         appointment_id: payment.appointment_id,
         item_id: payment.item_id,
         expense_id: payment.expense_id,
+        document_type: payment.document_type,
+        document_number: payment.document_number,
+        refund_of: payment.refund_of,
+        refund_of_number: payment.refund_of_number,
+        refunded: Number(payment.refunded || 0),
+        reason: payment.reason,
+        vat_amount: payment.vat_amount !== undefined ? Number(payment.vat_amount) : undefined,
+        amount_net: payment.amount_net !== undefined ? Number(payment.amount_net) : undefined,
       },
       partner: {
         name: payment.partner_name,

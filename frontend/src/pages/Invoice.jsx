@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getInvoiceData, getCompanySettings } from "../api/invoiceApi";
 import "./Invoice.css";
+import { money } from "./reports/format";
 
 export default function Invoice() {
   const { paymentId } = useParams();
@@ -63,14 +64,16 @@ export default function Invoice() {
   const totalInclVat = Number(payment?.amount || 0);
 
   const vatPercent = payment?.vat_percent != null ? Number(payment.vat_percent) : 0;
-  // VAT contained in a VAT-inclusive total: total * rate / (100 + rate).
-  // (121 EUR at 21% -> 21 EUR VAT, 100 EUR base.) Rounded to cents like on
-  // the payment record in the database.
-  const vatAmount = Math.round(((totalInclVat * vatPercent) / (100 + vatPercent)) * 100) / 100;
+  // VAT contained in a VAT-inclusive total: total * rate / (100 + rate)
+  // (121 EUR at 21% -> 21 EUR VAT, 100 EUR base). The server stores the same
+  // split; use it when available so the document matches the books exactly.
+  const vatAmount = Number.isFinite(payment?.vat_amount)
+    ? payment.vat_amount
+    : Math.round(((totalInclVat * vatPercent) / (100 + vatPercent)) * 100) / 100;
 
   // Unit price ex VAT, for expenses just the total
-  const unitPriceExVat = qty > 0 ? (totalInclVat - vatAmount) / qty : totalInclVat - vatAmount;
-  const subtotalExVat = qty * unitPriceExVat;
+  const subtotalExVat = Math.round((totalInclVat - vatAmount) * 100) / 100;
+  const unitPriceExVat = qty !== 0 ? subtotalExVat / qty : subtotalExVat;
 
   // description resolved from appointment/item/expense
   let description = "Payment";
@@ -82,7 +85,10 @@ export default function Invoice() {
     description = expense.name || "Expense";
   }
 
-  const formatMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const formatMoney = (n) => money(n);
+  const isCredit = payment.document_type === "credit_note";
+  const docTitle = isCredit ? "CREDIT NOTE" : payment.type === "incoming" ? "INVOICE" : "PAYMENT";
+  const docNumber = payment.document_number || String(payment.id).substring(0, 8).toUpperCase();
 
   return (
     <div className="invoice-container">
@@ -108,12 +114,17 @@ export default function Invoice() {
             </div>
 
             <div className="invoice-meta">
-              <h2>INVOICE</h2>
+              <h2>{docTitle}</h2>
               <p>
-                <strong>Invoice #:</strong> {String(payment.id).substring(0, 8).toUpperCase()}
+                <strong>{isCredit ? "Credit note no.:" : "Invoice no.:"}</strong> {docNumber}
               </p>
+              {isCredit && payment.refund_of_number && (
+                <p>
+                  <strong>Corrects invoice:</strong> {payment.refund_of_number}
+                </p>
+              )}
               <p>
-                <strong>Date:</strong> {new Date(payment.paid_at).toLocaleDateString()}
+                <strong>Date:</strong> {new Date(payment.paid_at).toLocaleDateString("es-ES")}
               </p>
             </div>
           </div>
@@ -121,7 +132,7 @@ export default function Invoice() {
           {/* Bill To */}
           <div className="invoice-section">
             <div className="bill-to">
-              <h3>Bill To</h3>
+              <h3>{isCredit ? "Refund to" : "Bill To"}</h3>
               <p className="partner-name">{partner.name}</p>
               {partner.address && <p>{partner.address}</p>}
               {partner.phone && <p>{partner.phone}</p>}
@@ -130,8 +141,8 @@ export default function Invoice() {
 
             <div className="invoice-details">
               <div className="detail-item">
-                <span>Invoice Date:</span>
-                <strong>{new Date(payment.paid_at).toLocaleDateString()}</strong>
+                <span>{isCredit ? "Issue date:" : "Invoice Date:"}</span>
+                <strong>{new Date(payment.paid_at).toLocaleDateString("es-ES")}</strong>
               </div>
 
               {/* Appointment block */}
@@ -139,7 +150,7 @@ export default function Invoice() {
                 <>
                   <div className="detail-item">
                     <span>Service Date:</span>
-                    <strong>{new Date(appointment.start_time).toLocaleDateString()}</strong>
+                    <strong>{new Date(appointment.start_time).toLocaleDateString("es-ES")}</strong>
                   </div>
                   <div className="detail-item">
                     <span>Master:</span>
@@ -174,7 +185,10 @@ export default function Invoice() {
               </thead>
               <tbody>
                 <tr>
-                  <td>{description}</td>
+                  <td>
+                    {isCredit ? `Refund: ${description}` : description}
+                    {isCredit && payment.reason && <div className="invoice-reason">Reason: {payment.reason}</div>}
+                  </td>
                   <td className="text-center">{qty}</td>
                   <td className="text-right">{formatMoney(unitPriceExVat)}</td>
                   <td className="text-right">
@@ -202,7 +216,7 @@ export default function Invoice() {
               </div>
 
               <div className="total-row total">
-                <span>Total Due (incl VAT):</span>
+                <span>{isCredit ? "Total refunded (incl VAT):" : "Total (incl VAT):"}</span>
                 <strong>{formatMoney(totalInclVat)}</strong>
               </div>
             </div>
@@ -210,8 +224,19 @@ export default function Invoice() {
 
           {/* Footer */}
           <div className="invoice-footer">
-            <p>Thank you for your business!</p>
-            <p className="footer-note">Payment was received on {new Date(payment.paid_at).toLocaleDateString()}</p>
+            {isCredit ? (
+              <p className="footer-note">
+                Credit note issued on {new Date(payment.paid_at).toLocaleDateString("es-ES")} correcting invoice {payment.refund_of_number}.
+              </p>
+            ) : (
+              <>
+                <p>Thank you for your business!</p>
+                <p className="footer-note">Payment was received on {new Date(payment.paid_at).toLocaleDateString("es-ES")}</p>
+                {payment.refunded > 0 && (
+                  <p className="footer-note">Refunded by credit note: {formatMoney(payment.refunded)}</p>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

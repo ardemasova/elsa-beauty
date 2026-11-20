@@ -26,7 +26,8 @@ router.get("/company", authenticateToken, async (req, res) => {
         phone,
         website,
         currency,
-        timezone
+        timezone,
+        invoice_prefix
       FROM ${schema}.settings
       LIMIT 1
       `
@@ -45,6 +46,7 @@ router.get("/company", authenticateToken, async (req, res) => {
         website: "",
         currency: "EUR",
         timezone: "Europe/Madrid",
+        invoice_prefix: "",
       });
     }
 
@@ -73,6 +75,14 @@ router.put("/company", authenticateToken, requireAdmin, async (req, res) => {
 
   if (!name) {
     return res.status(400).json({ message: "Company name is required" });
+  }
+
+  // Invoice series prefix (e.g. "CEN" -> CEN-F-2026-0001). Optional; only
+  // letters and digits so numbers stay unambiguous.
+  const prefixGiven = req.body.invoice_prefix !== undefined;
+  const invoicePrefix = String(req.body.invoice_prefix ?? "").trim().toUpperCase();
+  if (prefixGiven && !/^[A-Z0-9]{0,6}$/.test(invoicePrefix)) {
+    return res.status(400).json({ message: "Invoice prefix: up to 6 letters or digits" });
   }
 
   try {
@@ -158,6 +168,10 @@ router.put("/company", authenticateToken, requireAdmin, async (req, res) => {
       );
     }
 
+    if (prefixGiven) {
+      await db.query(`UPDATE ${schema}.settings SET invoice_prefix = $1 WHERE id = $2`, [invoicePrefix || null, result.rows[0].id]);
+      result.rows[0].invoice_prefix = invoicePrefix;
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error("UPDATE SETTINGS ERROR:", err);

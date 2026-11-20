@@ -80,9 +80,42 @@ async function cloneData(client, fromSchema, toSchema, ownerUserId, tables = CLO
   }
 }
 
+/** "Lola Centro" -> "LOL": tells the invoice series of a company's branches apart. */
+function invoicePrefix(branchName) {
+  return String(branchName || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || null;
+}
+
+/**
+ * Gives every customer document of a (freshly copied) branch a new number in
+ * its own series and resets the counters, so numbers never repeat.
+ */
+async function renumberDocuments(client, schema) {
+  const s = quoteIdent(schema);
+  await client.query(`UPDATE ${s}.payments SET document_number = NULL WHERE document_number IS NOT NULL`);
+  await client.query(`DELETE FROM ${s}.document_counters`);
+  await client.query(`
+    WITH cfg AS (SELECT invoice_prefix AS prefix FROM ${s}.settings ORDER BY created_at NULLS LAST LIMIT 1),
+    numbered AS (
+      SELECT p.id,
+             CASE WHEN p.document_type = 'credit_note' THEN 'R' ELSE 'F' END AS ser,
+             EXTRACT(year FROM (p.paid_at AT TIME ZONE 'Europe/Madrid'))::int AS yr,
+             row_number() OVER (PARTITION BY p.document_type, EXTRACT(year FROM (p.paid_at AT TIME ZONE 'Europe/Madrid'))
+                                ORDER BY p.paid_at, p.id) AS n
+        FROM ${s}.payments p WHERE p.type = 'incoming'
+    )
+    UPDATE ${s}.payments p
+       SET document_number = concat_ws('-', NULLIF((SELECT prefix FROM cfg), ''), numbered.ser, numbered.yr::text, lpad(numbered.n::text, 4, '0'))
+      FROM numbered WHERE numbered.id = p.id`);
+  await client.query(`
+    INSERT INTO ${s}.document_counters (series, year, last)
+    SELECT CASE WHEN document_type = 'credit_note' THEN 'R' ELSE 'F' END,
+           EXTRACT(year FROM (paid_at AT TIME ZONE 'Europe/Madrid'))::int, count(*)
+      FROM ${s}.payments WHERE type = 'incoming' GROUP BY 1, 2`);
+}
+
 async function seedDefaults(client, schema, branchName) {
   const s = quoteIdent(schema);
-  await client.query(`INSERT INTO ${s}.settings (name) VALUES ($1)`, [branchName]);
+  await client.query(`INSERT INTO ${s}.settings (name, invoice_prefix) VALUES ($1, $2)`, [branchName, invoicePrefix(branchName)]);
   for (const v of DEFAULT_VAT_RATES) {
     await client.query(`INSERT INTO ${s}.vat (percent, is_default) VALUES ($1, $2)`, [v.percent, v.is_default]);
   }
@@ -114,7 +147,11 @@ async function createTenant({ accountId, name, cloneFrom, ownerUserId }) {
       await client.query(`SELECT id FROM public.accounts WHERE id = $1 FOR UPDATE`, [accountId]);
       await assertBranchLimit(client, accountId);
 
-      if (cloneFrom) await cloneData(client, cloneFrom, schema, ownerUserId);
+      if (cloneFrom) {
+        await cloneData(client, cloneFrom, schema, ownerUserId);
+        await client.query(`UPDATE ${quoteIdent(schema)}.settings SET invoice_prefix = $1`, [invoicePrefix(branchName)]);
+        await renumberDocuments(client, schema);
+      }
       else await seedDefaults(client, schema, branchName);
 
       const { rows } = await client.query(
@@ -250,6 +287,7 @@ async function createAccount({ accountName, planCode = "standard", ownerEmail, o
 
 module.exports = {
   cloneData,
+  renumberDocuments,
   createAccount,
   createTenant,
   assertUserLimit,
