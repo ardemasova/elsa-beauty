@@ -19,6 +19,10 @@ export const getCompanySettings = async (token) => {
     company_phone: data.phone || "",
     company_website: data.website || "",
     invoice_prefix: data.invoice_prefix || "",
+    work_start: data.work_start || "10:00",
+    work_end: data.work_end || "20:00",
+    work_days: Array.isArray(data.work_days) ? data.work_days.map(Number) : [1, 2, 3, 4, 5, 6],
+    revenue_goal_month: data.revenue_goal_month ?? "",
   };
 };
 
@@ -35,6 +39,10 @@ export const updateCompanySettings = async (token, formData) => {
     phone: formData.company_phone,
     website: formData.company_website,
     invoice_prefix: formData.invoice_prefix,
+    work_start: formData.work_start,
+    work_end: formData.work_end,
+    work_days: formData.work_days,
+    revenue_goal_month: formData.revenue_goal_month === "" ? null : Number(formData.revenue_goal_month),
   };
 
   const response = await fetch(`${API_BASE}/settings/company`, {
@@ -46,6 +54,7 @@ export const updateCompanySettings = async (token, formData) => {
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) throw new Error('Failed to update company settings');
-  return response.json();
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.message || 'Failed to update company settings');
+  return data;
 };

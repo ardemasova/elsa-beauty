@@ -28,7 +28,11 @@ router.get("/company", authenticateToken, async (req, res) => {
         website,
         currency,
         timezone,
-        invoice_prefix
+        invoice_prefix,
+        to_char(work_start, 'HH24:MI') AS work_start,
+        to_char(work_end, 'HH24:MI') AS work_end,
+        work_days,
+        revenue_goal_month
       FROM ${schema}.settings
       ORDER BY created_at NULLS LAST
       LIMIT 1
@@ -49,6 +53,10 @@ router.get("/company", authenticateToken, async (req, res) => {
         currency: "EUR",
         timezone: "Europe/Madrid",
         invoice_prefix: "",
+        work_start: "10:00",
+        work_end: "20:00",
+        work_days: [1, 2, 3, 4, 5, 6],
+        revenue_goal_month: null,
       });
     }
 
@@ -85,6 +93,33 @@ router.put("/company", authenticateToken, requireAdmin, async (req, res) => {
   const invoicePrefix = String(req.body.invoice_prefix ?? "").trim().toUpperCase();
   if (prefixGiven && !/^[A-Z0-9]{0,6}$/.test(invoicePrefix)) {
     return res.status(400).json({ message: "Invoice prefix: up to 6 letters or digits" });
+  }
+
+  // Opening hours and the monthly revenue goal (dashboard). All optional.
+  const hours = {};
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (req.body.work_start !== undefined || req.body.work_end !== undefined) {
+    const ws = String(req.body.work_start || "");
+    const we = String(req.body.work_end || "");
+    if (!TIME_RE.test(ws) || !TIME_RE.test(we) || we <= ws) {
+      return res.status(400).json({ message: "Opening hours: give start and end as HH:MM, end after start" });
+    }
+    hours.work_start = ws;
+    hours.work_end = we;
+  }
+  if (req.body.work_days !== undefined) {
+    const d = req.body.work_days;
+    if (!Array.isArray(d) || !d.length || d.length > 7 || !d.every((x) => Number.isInteger(x) && x >= 1 && x <= 7)) {
+      return res.status(400).json({ message: "Working days: a list of weekdays 1 (Monday) to 7 (Sunday)" });
+    }
+    hours.work_days = [...new Set(d)].sort();
+  }
+  if (req.body.revenue_goal_month !== undefined) {
+    const g = req.body.revenue_goal_month;
+    if (g !== null && g !== "" && !(Number(g) >= 0 && Number(g) < 1e9)) {
+      return res.status(400).json({ message: "Revenue goal must be a positive amount" });
+    }
+    hours.revenue_goal_month = g === null || g === "" ? null : Math.round(Number(g) * 100) / 100;
   }
 
   try {
@@ -199,6 +234,14 @@ router.put("/company", authenticateToken, requireAdmin, async (req, res) => {
       );
     }
 
+    const keys = Object.keys(hours);
+    if (keys.length) {
+      await db.query(
+        `UPDATE ${schema}.settings SET ${keys.map((k, n) => `${k} = $${n + 1}`).join(", ")} WHERE id = $${keys.length + 1}`,
+        [...keys.map((k) => hours[k]), result.rows[0].id]
+      );
+      Object.assign(result.rows[0], hours);
+    }
     if (prefixGiven) {
       await db.query(`UPDATE ${schema}.settings SET invoice_prefix = $1 WHERE id = $2`, [invoicePrefix || null, result.rows[0].id]);
       result.rows[0].invoice_prefix = invoicePrefix;

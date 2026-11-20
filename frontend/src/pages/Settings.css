@@ -480,3 +480,21 @@
     flex-direction: column;
   }
 }
+.settings-days {
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.settings-days legend {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+.settings-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+}
