@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import logo from "../../assets/logo.png";
 import {
   Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
@@ -75,6 +76,10 @@ export function FigureRow({ items }) {
   );
 }
 
+function ChartBox({ printWidth, children }) {
+  return printWidth ? children : <ResponsiveContainer width="100%" height={260}>{children}</ResponsiveContainer>;
+}
+
 const shortDay = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 
 /** Money received per day (bars) and value of services done (line). */
@@ -106,6 +111,19 @@ export function DailyChart({ days, currency }) {
     return [...groups.values()];
   }, [days]);
 
+  // Printing does not resize the chart, so draw it at the printable width.
+  const [printWidth, setPrintWidth] = useState(null);
+  useEffect(() => {
+    const before = () => setPrintWidth(1000);
+    const after = () => setPrintWidth(null);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint", after);
+    };
+  }, []);
+
   if (!series.length) return null;
   const empty = series.every((d) => !d.income_gross && !d.rendered_value);
 
@@ -114,8 +132,9 @@ export function DailyChart({ days, currency }) {
       {empty ? (
         <p className="rp-empty">No payments or completed visits in this period yet.</p>
       ) : (
-        <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        <ChartBox printWidth={printWidth}>
+          <ComposedChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                         {...(printWidth ? { width: printWidth, height: 165 } : {})}>
             <CartesianGrid vertical={false} stroke="#eef0f2" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#6b7280" }} minTickGap={16} />
             <YAxis tickLine={false} axisLine={false} width={64} tick={{ fontSize: 12, fill: "#6b7280" }}
@@ -125,7 +144,7 @@ export function DailyChart({ days, currency }) {
             <Bar dataKey="income_gross" name="Money received" fill="#03839a" radius={[3, 3, 0, 0]} maxBarSize={28} />
             <Line dataKey="rendered_value" name="Services done (value)" stroke="#b96c86" strokeWidth={2} dot={series.length <= 31 ? { r: 2 } : false} type="linear" />
           </ComposedChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </section>
   );
@@ -195,5 +214,36 @@ export function DataTable({ columns, rows, currency, empty = "Nothing to show fo
         </tfoot>
       </table>
     </div>
+  );
+}
+
+/** Shown only on paper / PDF: who the report is for and which period. */
+export function PrintHeader({ company, branch, title, period, section }) {
+  const generated = new Date().toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+  const details = [
+    [company?.address, company?.vat_number && `NIF ${company.vat_number}`].filter(Boolean).join(", "),
+    [company?.phone, company?.email].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  return (
+    <header className="rp-print-header" aria-hidden="true">
+      <div className="rp-print-header__brand">
+        <span className="rp-print-header__logo">
+          <img src={logo} alt="" />
+        </span>
+        <div>
+          <p className="rp-print-header__company">{company?.name || branch || "Salon"}</p>
+          {branch && company?.name !== branch && <p className="rp-print-header__line">{branch}</p>}
+          {details.map((d) => (
+            <p key={d} className="rp-print-header__line">{d}</p>
+          ))}
+        </div>
+      </div>
+      <div className="rp-print-header__meta">
+        <p className="rp-print-header__title">{title}</p>
+        <p>{period}</p>
+        {section && <p>{section}</p>}
+        <p className="rp-print-header__line">Generated {generated}</p>
+      </div>
+    </header>
   );
 }
