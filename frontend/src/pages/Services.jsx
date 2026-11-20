@@ -383,7 +383,7 @@ export default function Services() {
                         <td>{s.duration} min</td>
                         <td>${(Number(s.price) || 0).toFixed(2)}</td>
                         <td>${(Number(s.cost) || 0).toFixed(2)}</td>
-                        <td style={{ fontWeight: 800, color: profitOk ? "#16a34a" : "#dc2626" }}>
+                        <td style={{ fontWeight: 600, color: profitOk ? "#16a34a" : "#dc2626" }}>
                           ${profit.toFixed(2)}
                         </td>
                         <td>
@@ -392,7 +392,7 @@ export default function Services() {
                               padding: "4px 8px",
                               borderRadius: "4px",
                               fontSize: "12px",
-                              fontWeight: 800,
+                              fontWeight: 600,
                               backgroundColor: s.is_active ? "#dcfce7" : "#fee2e2",
                               color: s.is_active ? "#166534" : "#991b1b",
                             }}
@@ -520,7 +520,7 @@ export default function Services() {
                         <td>{i.unit}</td>
                         <td>${(Number(i.price) || 0).toFixed(2)}</td>
                         <td>${(Number(i.cost) || 0).toFixed(2)}</td>
-                        <td style={{ fontWeight: 800, color: profitOk ? "#16a34a" : "#dc2626" }}>
+                        <td style={{ fontWeight: 600, color: profitOk ? "#16a34a" : "#dc2626" }}>
                           ${profit.toFixed(2)}
                         </td>
                         <td>{(Number(i.stock_qty) || 0).toString()}</td>
@@ -530,7 +530,7 @@ export default function Services() {
                               padding: "4px 8px",
                               borderRadius: "4px",
                               fontSize: "12px",
-                              fontWeight: 800,
+                              fontWeight: 600,
                               backgroundColor: i.is_active ? "#dcfce7" : "#fee2e2",
                               color: i.is_active ? "#166534" : "#991b1b",
                             }}

@@ -60,7 +60,7 @@
 
 .settings-header h1 {
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--nav-bg);
   margin: 0;
 }
@@ -69,7 +69,7 @@
   color: var(--muted);
   font-size: 14px;
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* =========================
@@ -81,7 +81,7 @@
   border-radius: 8px;
   background: var(--nav-accent-2);
   color: #fff;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -104,7 +104,7 @@
   border-radius: 8px;
   background: #fff;
   color: var(--nav-bg);
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -129,7 +129,7 @@
   border: none;
   padding: 10px 16px;
   border-radius: 8px;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -155,7 +155,7 @@
   border-radius: 8px;
   border-left: 4px solid #dc2626;
   margin: 16px 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .success-message {
@@ -166,18 +166,18 @@
   border-radius: 8px;
   border-left: 4px solid #16a34a;
   margin: 16px 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .info-message {
   background: rgba(0, 80, 103, 0.06);
   border: 1px solid var(--border);
   border-left: 4px solid rgba(3, 131, 154, 0.55);
-  color: #0f172a;
+  color: var(--text);
   padding: 14px 16px;
   border-radius: 8px;
   margin: 16px 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* =========================
@@ -197,7 +197,7 @@
   border: none;
   border-bottom: 3px solid transparent;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--muted);
   cursor: pointer;
   transition: all 0.2s;
@@ -234,7 +234,7 @@
 
 .settings-section h2 {
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 600;
   color: var(--nav-bg);
   margin: 0 0 20px 0;
   padding-bottom: 16px;
@@ -261,7 +261,7 @@
 
 .form-group label {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: #374151;
 }
 
@@ -321,7 +321,7 @@
 .settings-branches-header h2 {
   margin: 0;
   font-size: 22px;
-  font-weight: 900;
+  font-weight: 600;
   color: var(--nav-bg);
 }
 
@@ -339,10 +339,10 @@
   padding: 16px;
   text-align: left;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .branches-table tbody tr {
@@ -365,7 +365,7 @@
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .status-pill.active {
@@ -415,8 +415,8 @@
 
 .modal-content h3 {
   font-size: 22px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 20px 0;
 }
 
@@ -432,7 +432,7 @@
   text-align: center;
   padding: 60px 40px;
   color: #9ca3af;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* =========================

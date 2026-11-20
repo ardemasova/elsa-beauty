@@ -5,7 +5,7 @@ body {
   margin: 0;
   font-family: Inter, Arial, sans-serif; /* основной текст */
   background: linear-gradient(135deg, #f5f7fa, #e4ecf7);
-  color: #111827;
+  color: var(--text);
   width: 100%;
   min-height: 100vh;
 }
@@ -13,7 +13,7 @@ body {
 /* Заголовки */
 h1, h2, h3, h4, h5, h6 {
   font-family: Poppins, Arial, sans-serif;
-  color: #1f2937;
+  color: var(--text);
   margin: 0 0 12px 0;
 }
 
@@ -224,7 +224,7 @@ button.secondary:hover {
   padding: 12px 14px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 14px;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .card tr:hover td {
@@ -325,7 +325,7 @@ button.secondary:hover {
   margin-top: 0;
   margin-bottom: 20px;
   font-size: 1.5em;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .modal-content form {

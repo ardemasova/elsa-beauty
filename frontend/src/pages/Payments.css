@@ -17,7 +17,7 @@
 .payments-header h1 {
   margin: 0;
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--nav-bg);
 }
 
@@ -28,7 +28,7 @@
   border: none;
   padding: 12px 24px;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
@@ -51,7 +51,7 @@
   border: 1px solid rgba(0, 80, 103, 0.35);
   padding: 12px 24px;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
@@ -92,7 +92,7 @@
   border-radius: 8px;
   border-left: 4px solid #dc2626;
   margin-bottom: 20px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Table */
@@ -118,9 +118,9 @@
 .payments-table th {
   padding: 16px;
   text-align: left;
-  font-weight: 800;
+  font-weight: 600;
   font-size: 13px;
-  color: #0f172a;
+  color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -136,27 +136,27 @@
 
 .payments-table td {
   padding: 16px;
-  color: #1f2937;
+  color: var(--text);
   font-size: 14px;
 }
 
 .cell-date {
-  font-weight: 800;
+  font-weight: 600;
   color: #005067;
 }
 
 .cell-time {
   color: #6b7280;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .cell-master {
-  color: #1f2937;
-  font-weight: 700;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .cell-amount {
-  font-weight: 900;
+  font-weight: 600;
   color: #b96c86; /* updated */
   font-size: 15px;
 }
@@ -168,7 +168,7 @@
 .cell-paid-at {
   color: #6b7280;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .cell-actions {
@@ -181,7 +181,7 @@
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: capitalize;
 }
 
@@ -213,7 +213,7 @@
   min-height: 300px;
   font-size: 16px;
   color: #6b7280;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Empty State */
@@ -230,7 +230,7 @@
   font-size: 16px;
   color: #9ca3af;
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Danger button */
@@ -240,7 +240,7 @@
   border: none;
   padding: 12px 24px;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
@@ -274,8 +274,8 @@
 
 .confirm-dialog h3 {
   font-size: 20px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 8px 0;
 }
 
@@ -283,7 +283,7 @@
   color: #6b7280;
   margin: 0 0 24px 0;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .confirm-actions {
@@ -295,7 +295,7 @@
 .confirm-actions button {
   padding: 12px 24px;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
@@ -326,7 +326,7 @@
   border: none;
   border-bottom: 3px solid transparent;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: #6b7280;
   cursor: pointer;
   transition: all 0.2s;
@@ -350,8 +350,8 @@
   border-radius: 12px;
   text-align: right;
   font-size: 16px;
-  color: #1f2937;
-  font-weight: 800;
+  color: var(--text);
+  font-weight: 600;
 }
 
 /* Responsive */

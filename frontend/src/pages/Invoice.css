@@ -29,7 +29,7 @@
 .invoice-toolbar button {
   padding: 10px 16px;
   border-radius: 8px;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
@@ -95,8 +95,8 @@
 
 .company-info h1 {
   font-size: 26px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 6px 0;
 }
 
@@ -104,7 +104,7 @@
   margin: 4px 0;
   color: var(--muted);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .invoice-meta {
@@ -113,7 +113,7 @@
 
 .invoice-meta h2 {
   font-size: 28px;
-  font-weight: 900;
+  font-weight: 600;
   color: var(--nav-bg);
   margin: 0 0 10px 0;
   letter-spacing: 1px;
@@ -123,7 +123,7 @@
   margin: 6px 0;
   color: #4b5563;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Sections */
@@ -141,17 +141,17 @@
 .bill-to h3,
 .invoice-details h3 {
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #0f172a;
+  color: var(--text);
   margin: 0 0 12px 0;
 }
 
 .bill-to .partner-name {
   font-size: 16px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 6px 0;
 }
 
@@ -159,7 +159,7 @@
   margin: 4px 0;
   color: #4b5563;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .invoice-details {
@@ -179,12 +179,12 @@
 .detail-item span {
   color: var(--muted);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .detail-item strong {
-  color: #0f172a;
-  font-weight: 900;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .capitalize {
@@ -209,8 +209,8 @@
 .invoice-table th {
   padding: 14px;
   text-align: left;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -221,7 +221,7 @@
   border-bottom: 1px solid var(--border);
   color: var(--text);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .invoice-table tbody tr:hover {
@@ -253,8 +253,8 @@
   padding: 10px 0;
   border-bottom: 1px solid rgba(0, 80, 103, 0.14);
   font-size: 14px;
-  font-weight: 800;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .total-row.total {
@@ -262,12 +262,12 @@
   border-top: 2px solid rgba(0, 80, 103, 0.25);
   padding: 14px 0;
   font-size: 16px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .total-row strong {
-  font-weight: 900;
+  font-weight: 600;
 }
 
 /* Footer */
@@ -282,13 +282,13 @@
   margin: 8px 0;
   color: var(--muted);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .footer-note {
   font-size: 12px;
   color: #9ca3af;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* States */
@@ -297,7 +297,7 @@
   padding: 60px 40px;
   text-align: center;
   color: #9ca3af;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .invoice-error button {
@@ -308,7 +308,7 @@
   border: 1px solid rgba(185, 108, 134, 0.55) !important;
   border-radius: 10px;
   cursor: pointer;
-  font-weight: 900;
+  font-weight: 600;
   transition: all 0.2s;
 }
 

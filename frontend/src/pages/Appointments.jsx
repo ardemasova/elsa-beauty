@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import Calendar from "./components/Calendar";
+import { useEffect, useMemo, useState } from "react";
+import AppointmentModal from "./components/AppointmentModal";
+import FilterMenu from "./dashboard/FilterMenu";
+import { periodLabel, periodRange, shiftAnchor, withYear, parseDay, pad } from "./dashboard/period";
+import { DayView, MonthView, WeekView } from "./calendar/ScheduleViews";
+import { asModalEvent } from "./calendar/util";
+import { getCompanySettings } from "../api/settingsApi";
 import {
   fetchMasters,
   fetchMyMaster,
@@ -15,6 +20,8 @@ import CreateAppointmentModal from "./components/CreateAppointmentModal";
 import { exportRowsToExcel } from "../utils/exportExcel";
 
 import "./Dashboard.css";
+import "./dashboard/dashboard.css";
+import "./calendar/schedule.css";
 import "./Appointments.css";
 
 function decodeToken(token) {
@@ -45,10 +52,6 @@ export default function Appointments() {
   const [selectedClients, setSelectedClients] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]);
 
-  const [showMasterFilter, setShowMasterFilter] = useState(false);
-  const [showClientFilter, setShowClientFilter] = useState(false);
-  const [showServiceFilter, setShowServiceFilter] = useState(false);
-
   const [appointments, setAppointments] = useState([]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -65,7 +68,10 @@ export default function Appointments() {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-  const filtersWrapperRef = useRef(null);
+  const [settings, setSettings] = useState(null);
+  const [weekMaster, setWeekMaster] = useState(""); // "" = all masters (summary)
+  const [openAppt, setOpenAppt] = useState(null);
+  const [createAt, setCreateAt] = useState(null); // { masterId, start }
 
   const canEditAppointment = (appointment) => {
     if (isAdmin) return true;
@@ -73,132 +79,17 @@ export default function Appointments() {
     return false;
   };
 
-  const getDateRangeForAPI = () => {
-    const date = new Date(currentDate);
+  const range = useMemo(() => periodRange(period, currentDate), [period, currentDate]);
+  const getDateRangeForAPI = () => ({ start: range.from, end: range.to });
 
-    if (period === "day") {
-      const start = date.toISOString().split("T")[0];
-      const end = date.toISOString().split("T")[0];
-      return { start, end };
-    } else if (period === "week") {
-      const start = new Date(date);
-      start.setDate(date.getDate() - date.getDay());
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-
-      return {
-        start: start.toISOString().split("T")[0],
-        end: end.toISOString().split("T")[0],
-      };
-    } else if (period === "month") {
-      const start = new Date(date.getFullYear(), date.getMonth(), 1);
-      const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-      return {
-        start: start.toISOString().split("T")[0],
-        end: end.toISOString().split("T")[0],
-      };
-    }
-
-    const start = date.toISOString().split("T")[0];
-    return { start, end: start };
+  const handlePeriodChange = (newPeriod) => setPeriod(newPeriod);
+  const pickDay = (d) => {
+    setCurrentDate(parseDay(d));
+    setPeriod("day");
   };
-
-  const getDateRangeText = () => {
-    const date = new Date(currentDate);
-
-    if (period === "day") {
-      return date.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } else if (period === "week") {
-      const start = new Date(date);
-      start.setDate(date.getDate() - date.getDay());
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-
-      const startStr = start.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-      const endStr = end.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-
-      return `${startStr} – ${endStr}`;
-    } else if (period === "month") {
-      return date.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
-    }
-  };
-
-  const handlePrevious = () => {
-    const newDate = new Date(currentDate);
-    if (period === "day") newDate.setDate(newDate.getDate() - 1);
-    else if (period === "week") newDate.setDate(newDate.getDate() - 7);
-    else if (period === "month") newDate.setMonth(newDate.getMonth() - 1);
-    setCurrentDate(newDate);
-  };
-
-  const handleNext = () => {
-    const newDate = new Date(currentDate);
-    if (period === "day") newDate.setDate(newDate.getDate() + 1);
-    else if (period === "week") newDate.setDate(newDate.getDate() + 7);
-    else if (period === "month") newDate.setMonth(newDate.getMonth() + 1);
-    setCurrentDate(newDate);
-  };
-
-  const handleToday = () => setCurrentDate(new Date());
-
-  const handlePeriodChange = (newPeriod) => {
-    setPeriod(newPeriod);
-    setCurrentDate(new Date());
-  };
-
-  const toggleMaster = (masterId) => {
-    setSelectedMasters((prev) => (prev.includes(masterId) ? prev.filter((id) => id !== masterId) : [...prev, masterId]));
-  };
-
-  const toggleClient = (clientId) => {
-    setSelectedClients((prev) => (prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]));
-  };
-
-  const toggleService = (serviceId) => {
-    setSelectedServices((prev) => (prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]));
-  };
-
-  const toggleAllMasters = () => {
-    if (selectedMasters.length === masters.length) setSelectedMasters([]);
-    else setSelectedMasters(masters.map((m) => m.id));
-  };
-
-  const toggleAllClients = () => {
-    if (selectedClients.length === clients.length) setSelectedClients([]);
-    else setSelectedClients(clients.map((c) => c.id));
-  };
-
-  const toggleAllServices = () => {
-    if (selectedServices.length === services.length) setSelectedServices([]);
-    else setSelectedServices(services.map((s) => s.id));
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (filtersWrapperRef.current && filtersWrapperRef.current.contains(e.target)) return;
-      setShowMasterFilter(false);
-      setShowClientFilter(false);
-      setShowServiceFilter(false);
-    };
-
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+  const years = useMemo(() => {
+    const y = new Date().getFullYear();
+    return [y - 2, y - 1, y, y + 1];
   }, []);
 
   const loadFilters = async () => {
@@ -214,13 +105,10 @@ export default function Appointments() {
 
       setClients(clientsData);
       setServices(servicesData);
-      setSelectedClients(clientsData.map((c) => c.id));
-      setSelectedServices(servicesData.map((s) => s.id));
-
       setMasters(Array.isArray(mastersData) ? mastersData : []);
-      setSelectedMasters(Array.isArray(mastersData) ? mastersData.map((m) => m.id) : []);
-
       setMyMasterId(me?.id || "");
+      if (me?.id) setWeekMaster(me.id);
+      getCompanySettings(token).then(setSettings).catch(() => {});
     } catch (err) {
       console.error("Failed to load filters:", err);
       setError(err.message || "Failed to load filters");
@@ -253,7 +141,7 @@ export default function Appointments() {
     if (!token) return;
     loadAppointmentsByRange();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, period, currentDate]);
+  }, [token, range.from, range.to]);
 
   // ======= Helpers =======
   const formatDateTime = (dateString) => {
@@ -408,148 +296,114 @@ export default function Appointments() {
     exportRowsToExcel(rows, "Appointments", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
-  const dateRange = getDateRangeForAPI();
+  const customers = useMemo(() => clients.filter((c) => (c.type || "customer") === "customer"), [clients]);
+  const visibleMasters = useMemo(
+    () => masters.filter((m) => (m.is_active !== false) && (selectedMasters.length === 0 || selectedMasters.includes(m.id))),
+    [masters, selectedMasters]
+  );
+  const weekMasterObj = masters.find((m) => m.id === weekMaster) || null;
+  const colorOfMaster = (id) => masters.find((m) => m.id === id)?.color || "#03839a";
+  const slotClick = isAdmin || isMaster
+    ? (masterId, day, minutes) => {
+        if (isMaster && !isAdmin && masterId !== myMasterId) return;
+        setCreateAt({ masterId, start: `${day}T${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}` });
+      }
+    : null;
 
   return (
     <div className="dashboard-container">
-      <div className="dashboard-topbar">
-        <div className="topbar-left">
-          <div className="calendar-nav">
-            <button className="nav-btn" onClick={handlePrevious}>
-              ‹
-            </button>
-            <button className="nav-btn today-btn" onClick={handleToday}>
-              Today
-            </button>
-            <button className="nav-btn" onClick={handleNext}>
-              ›
-            </button>
-            <span className="date-range">{getDateRangeText()}</span>
+      <div className="db db--embedded">
+        <div className="db-bar db-card">
+          <div className="db-bar__nav">
+            <button type="button" className="db-icon-btn" aria-label={`Previous ${period}`} onClick={() => setCurrentDate((d) => shiftAnchor(period, d, -1))}>‹</button>
+            <button type="button" className="db-today" onClick={() => setCurrentDate(new Date())}>Today</button>
+            <button type="button" className="db-icon-btn" aria-label={`Next ${period}`} onClick={() => setCurrentDate((d) => shiftAnchor(period, d, 1))}>›</button>
+            <span className="db-bar__range">{periodLabel(period, currentDate)}</span>
+          </div>
+          <label className="db-year">
+            Year
+            <select value={currentDate.getFullYear()} onChange={(e) => setCurrentDate((d) => withYear(d, Number(e.target.value)))}>
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </label>
+          <div className="db-seg" role="group" aria-label="Calendar view">
+            {["day", "week", "month"].map((p) => (
+              <button key={p} type="button" className={period === p ? "is-on" : ""} aria-pressed={period === p} onClick={() => handlePeriodChange(p)}>
+                {p[0].toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="db-bar__filters">
+            {isAdmin && (
+              <FilterMenu
+                label="Masters"
+                items={masters.map((m) => ({ id: m.id, name: m.name, color: m.color }))}
+                selected={selectedMasters}
+                onChange={setSelectedMasters}
+              />
+            )}
+            <FilterMenu
+              label="Customers"
+              items={customers.map((c) => ({ id: c.id, name: c.name }))}
+              selected={selectedClients}
+              onChange={setSelectedClients}
+              searchable
+            />
+            <FilterMenu
+              label="Services"
+              items={services.map((s) => ({ id: s.id, name: s.name }))}
+              selected={selectedServices}
+              onChange={setSelectedServices}
+              searchable
+            />
           </div>
         </div>
 
-        <div className="topbar-center">
-          <div className="period-selector">
-            <button className={period === "day" ? "active" : ""} onClick={() => handlePeriodChange("day")}>
-              Day
-            </button>
-            <button className={period === "week" ? "active" : ""} onClick={() => handlePeriodChange("week")}>
-              Week
-            </button>
-            <button className={period === "month" ? "active" : ""} onClick={() => handlePeriodChange("month")}>
-              Month
-            </button>
-          </div>
-        </div>
+        {error && <p className="db-error" role="alert">{error}</p>}
 
-        <div className="topbar-right" ref={filtersWrapperRef}>
-          <div className="filters-group">
-            <div className="filter-item">
-              <button
-                className="filter-toggle"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMasterFilter(!showMasterFilter);
-                }}
-              >
-                Masters ({selectedMasters.length}/{masters.length})
-              </button>
-              {showMasterFilter && (
-                <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
-                  <label className="filter-option">
-                    <input
-                      type="checkbox"
-                      checked={selectedMasters.length === masters.length && masters.length > 0}
-                      onChange={toggleAllMasters}
-                    />
-                    <span>All Masters</span>
-                  </label>
-                  {masters.map((m) => (
-                    <label key={m.id} className="filter-option">
-                      <input type="checkbox" checked={selectedMasters.includes(m.id)} onChange={() => toggleMaster(m.id)} />
-                      <span>{m.name}</span>
-                    </label>
+        <section className={`db-card sc-wrap ${loading ? "is-loading" : ""}`}>
+          {period === "week" && (
+            <div className="sc-toolbar">
+              <label className="sc-master-pick">
+                <span>Show</span>
+                <select value={weekMaster} onChange={(e) => setWeekMaster(e.target.value)} disabled={isMaster && !isAdmin}>
+                  {!isMaster && <option value="">All masters: summary per day</option>}
+                  {visibleMasters.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
-                </div>
-              )}
+                </select>
+              </label>
+              {weekMasterObj && <span className="sc-dot" style={{ background: weekMasterObj.color || "#03839a" }} aria-hidden="true" />}
             </div>
-
-            <div className="filter-item">
-              <button
-                className="filter-toggle"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowClientFilter(!showClientFilter);
-                }}
-              >
-                Clients ({selectedClients.length}/{clients.length})
-              </button>
-              {showClientFilter && (
-                <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
-                  <label className="filter-option">
-                    <input
-                      type="checkbox"
-                      checked={selectedClients.length === clients.length && clients.length > 0}
-                      onChange={toggleAllClients}
-                    />
-                    <span>All Clients</span>
-                  </label>
-                  {clients.map((c) => (
-                    <label key={c.id} className="filter-option">
-                      <input type="checkbox" checked={selectedClients.includes(c.id)} onChange={() => toggleClient(c.id)} />
-                      <span>{c.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="filter-item">
-              <button
-                className="filter-toggle"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowServiceFilter(!showServiceFilter);
-                }}
-              >
-                Services ({selectedServices.length}/{services.length})
-              </button>
-              {showServiceFilter && (
-                <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
-                  <label className="filter-option">
-                    <input
-                      type="checkbox"
-                      checked={selectedServices.length === services.length && services.length > 0}
-                      onChange={toggleAllServices}
-                    />
-                    <span>All Services</span>
-                  </label>
-                  {services.map((s) => (
-                    <label key={s.id} className="filter-option">
-                      <input type="checkbox" checked={selectedServices.includes(s.id)} onChange={() => toggleService(s.id)} />
-                      <span>{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {error && <p className="appointments-error-message">{error}</p>}
-
-      <div className="calendar-main-section">
-        <Calendar
-          onRefresh={loadAppointmentsByRange}
-          masters={masters}
-          selectedMasters={selectedMasters}
-          selectedClients={selectedClients}
-          selectedServices={selectedServices}
-          dateRange={dateRange}
-          period={period}
-          currentDate={currentDate}
-        />
+          )}
+          {period === "day" && (
+            <DayView
+              day={range.from}
+              masters={visibleMasters}
+              appts={filteredAppointments}
+              settings={settings}
+              onOpen={setOpenAppt}
+              onSlot={slotClick}
+            />
+          )}
+          {period === "week" && (
+            <WeekView
+              days={range.days}
+              master={weekMasterObj}
+              masters={visibleMasters}
+              appts={filteredAppointments}
+              settings={settings}
+              onOpen={setOpenAppt}
+              onSlot={slotClick}
+              onPickDay={pickDay}
+            />
+          )}
+          {period === "month" && (
+            <MonthView anchor={currentDate} appts={filteredAppointments} masters={visibleMasters} settings={settings} onPickDay={pickDay} />
+          )}
+        </section>
       </div>
 
       {error && <div className="error-message">{error}</div>}
@@ -592,7 +446,7 @@ export default function Appointments() {
                       <td>{getMasterName(a.master_id)}</td>
                       <td>{getClientName(a.client_id)}</td>
                       <td>{getServiceName(a.service_id)}</td>
-                      <td>{formatMoney(getServicePrice(a.service_id))}</td>
+                      <td>{formatMoney(a.price ?? getServicePrice(a.service_id))}</td>
                       <td>{formatDateTime(a.start_time)}</td>
                       <td>{getServiceDuration(a.service_id)} min</td>
                       <td>
@@ -620,7 +474,7 @@ export default function Appointments() {
                             </button>
                           </>
                         ) : (
-                          <span style={{ color: "#9ca3af", fontWeight: 700 }}>View only</span>
+                          <span style={{ color: "#9ca3af", fontWeight: 600 }}>View only</span>
                         )}
                       </td>
                     </tr>
@@ -724,13 +578,26 @@ export default function Appointments() {
         )}
       </div>
 
-      {showCreateModal && (
+      {(showCreateModal || createAt) && (
         <CreateAppointmentModal
-          onClose={() => setShowCreateModal(false)}
+          initialMasterId={createAt?.masterId || ""}
+          initialStart={createAt?.start || ""}
+          onClose={() => {
+            setShowCreateModal(false);
+            setCreateAt(null);
+          }}
           onSuccess={async () => {
             setShowCreateModal(false);
+            setCreateAt(null);
             await loadAppointmentsByRange();
           }}
+        />
+      )}
+      {openAppt && (
+        <AppointmentModal
+          event={asModalEvent(openAppt, colorOfMaster(openAppt.master_id))}
+          onClose={() => setOpenAppt(null)}
+          onUpdate={loadAppointmentsByRange}
         />
       )}
     </div>

@@ -608,7 +608,7 @@ export default function Settings() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="4" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 700 }}>
+                          <td colSpan="4" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 600 }}>
                             No branches yet
                           </td>
                         </tr>
@@ -730,7 +730,7 @@ export default function Settings() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="3" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 700 }}>
+                          <td colSpan="3" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 600 }}>
                             No VAT rates yet
                           </td>
                         </tr>
@@ -879,7 +879,7 @@ function VatModal({ title, initialValues, loading, onClose, onSubmit, submitLabe
               <option value="N">No</option>
               <option value="Y">Yes</option>
             </select>
-            <p style={{ marginTop: 8, color: "#6b7280", fontWeight: 700, fontSize: 13 }}>
+            <p style={{ marginTop: 8, color: "#6b7280", fontWeight: 600, fontSize: 13 }}>
               Only one VAT rate can be default. If you set this to Yes, the system will unset the previous default.
             </p>
           </div>
