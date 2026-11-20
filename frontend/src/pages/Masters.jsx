@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchMasters, fetchUsers, createMaster, updateMaster, deleteMaster } from "../api/api";
 import PhotoUpload from "../components/PhotoUpload";
 import { toAbsoluteUploadUrl } from "../api/uploadApi";
-import * as XLSX from "xlsx";
+import { exportRowsToExcel } from "../utils/exportExcel";
 import "./Appointments.css";
 
 const AVATAR_SIZE = 54;
@@ -143,10 +143,7 @@ export default function Masters() {
 
     const fileName = `masters_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Masters");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Masters", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   return (

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
@@ -11,7 +11,8 @@ import Clients from "./pages/Clients";
 import Users from "./pages/Users";
 import Payments from "./pages/Payments";
 import Settings from "./pages/Settings";
-import Reports from "./pages/Reports";
+// Charts are heavy: the Reports screen is loaded only when opened.
+const Reports = lazy(() => import("./pages/Reports"));
 import AiAssistant from "./pages/AIAssistant";
 import Invoice from "./pages/Invoice";
 import MasterPerformanceReport from "./components/MasterPerformanceReport";
@@ -88,7 +89,7 @@ function App() {
           <Route
             path="/masters"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <Masters />
               </ProtectedRoute>
             }
@@ -106,7 +107,7 @@ function App() {
           <Route
             path="/users"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <Users />
               </ProtectedRoute>
             }
@@ -116,7 +117,9 @@ function App() {
             path="/reports"
             element={
               <ProtectedRoute>
-                <Reports />
+                <Suspense fallback={<div style={{ padding: 32, color: "#6b7280" }}>Loading reports…</div>}>
+                  <Reports />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -133,7 +136,7 @@ function App() {
           <Route
             path="/ai-assistant"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <AiAssistant />
               </ProtectedRoute>
             }
@@ -142,13 +145,14 @@ function App() {
           <Route
             path="/settings"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly>
                 <Settings />
               </ProtectedRoute>
             }
           />
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to={isAuth ? "/dashboard" : "/login"} replace />} />
+          <Route path="*" element={<Navigate to={isAuth ? "/dashboard" : "/login"} replace />} />
         </Routes>
       </main>
     </Router>

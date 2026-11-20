@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchClientsByType, createClient, updateClient, deleteClient } from "../api/api";
 import PhotoUpload from "../components/PhotoUpload";
 import { toAbsoluteUploadUrl } from "../api/uploadApi";
-import * as XLSX from "xlsx";
+import { exportRowsToExcel } from "../utils/exportExcel";
 import "./Clients.css";
 
 const AVATAR_SIZE = 54;
@@ -227,10 +227,7 @@ export default function Clients() {
 
     const fileName = `partners_${activeTab}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Partners");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Partners", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   return (

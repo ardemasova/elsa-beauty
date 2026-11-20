@@ -13,7 +13,7 @@ import {
   updateExpense,
   deleteExpense,
 } from "../api/api";
-import * as XLSX from "xlsx";
+import { exportRowsToExcel } from "../utils/exportExcel";
 import "./Appointments.css";
 
 export default function Services() {
@@ -151,10 +151,7 @@ export default function Services() {
     });
 
     const fileName = `services_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Services");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Services", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   // ===== ITEMS CRUD =====
@@ -220,10 +217,7 @@ export default function Services() {
     });
 
     const fileName = `items_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Items");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Items", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   // ===== EXPENSES CRUD =====
@@ -275,10 +269,7 @@ export default function Services() {
       Name: e.name,
     }));
     const fileName = `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Expenses", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   // Header actions switch

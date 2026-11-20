@@ -10,10 +10,28 @@ const router = express.Router();
 // GET all partners (with optional filter by type)
 // =======================
 router.get("/", authenticateToken, requireFeature('partners'), async (req, res) => {
-  const { type } = req.query; // 'customer', 'vendor', or undefined for all
+  let { type } = req.query; // 'customer', 'vendor', or undefined for all
 
   try {
     const schema = await resolveTenantSchema(req);
+
+    // Masters need the customer list to book appointments, nothing more:
+    // no vendors, no bank details.
+    if (req.user.role !== "admin") {
+      // Contact details only for the master's own clients.
+      const { rows } = await db.query(
+        `SELECT c.id, c.name, c.type, c.photo_url,
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM ${schema}.appointments a
+                    JOIN ${schema}.masters m ON m.id = a.master_id
+                   WHERE a.client_id = c.id AND m.user_id = $1
+                ) THEN c.phone END AS phone
+           FROM ${schema}.clients c
+          WHERE c.type = 'customer' ORDER BY c.name`,
+        [req.user.id]
+      );
+      return res.json(rows);
+    }
 
     let query = `
       SELECT 
@@ -310,6 +328,11 @@ router.delete("/:id", authenticateToken, requireFeature('partners'), async (req,
 
     return res.json({ message: "Partner deleted successfully" });
   } catch (err) {
+    if (err.code === "23503") {
+      return res.status(409).json({
+        message: "This client has appointments or payments and cannot be deleted",
+      });
+    }
     console.error("DELETE PARTNER ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }

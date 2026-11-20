@@ -13,11 +13,8 @@ export default defineConfig({
       'subumbelliferous-judith-jaspered.ngrok-free.dev'
     ],
     proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        secure: false,
-      }
+      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/uploads': { target: 'http://localhost:3000', changeOrigin: true },
     }
   }
 })

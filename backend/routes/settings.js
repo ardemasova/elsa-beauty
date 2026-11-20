@@ -1,6 +1,6 @@
 const express = require("express");
 const db = require("../db");
-const { authenticateToken } = require("../middleware/auth");
+const { authenticateToken, requireAdmin } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
 
 const router = express.Router();
@@ -24,7 +24,9 @@ router.get("/company", authenticateToken, async (req, res) => {
         bank_code,
         email,
         phone,
-        website
+        website,
+        currency,
+        timezone
       FROM ${schema}.settings
       LIMIT 1
       `
@@ -41,20 +43,22 @@ router.get("/company", authenticateToken, async (req, res) => {
         email: "",
         phone: "",
         website: "",
+        currency: "EUR",
+        timezone: "Europe/Madrid",
       });
     }
 
     res.json(rows[0]);
   } catch (err) {
     console.error("GET SETTINGS ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // =======================
 // UPDATE company settings
 // =======================
-router.put("/company", authenticateToken, async (req, res) => {
+router.put("/company", authenticateToken, requireAdmin, async (req, res) => {
   const {
     name,
     address,
@@ -157,7 +161,7 @@ router.put("/company", authenticateToken, async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error("UPDATE SETTINGS ERROR:", err);
-    res.status(500).json({ message: "Server error", details: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 

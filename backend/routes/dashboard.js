@@ -3,6 +3,7 @@ const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { resolveTenantSchema } = require("../utils/tenant");
 const { requireFeature } = require('../middleware/featureGuard');
+const metrics = require("../services/reports/metrics");
 
 const router = express.Router();
 
@@ -18,73 +19,49 @@ router.get("/stats", authenticateToken, requireFeature('dashboard'), async (req,
 
   try {
     const schema = await resolveTenantSchema(req);
+    const { timezone } = await metrics.branchSettings(db, schema);
 
-    let dateLabel = "";
-
-    const now = new Date();
-    let startDate;
-    const endDate = now;
-
-    switch (period) {
-      case "day":
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        dateLabel = "Today";
-        break;
-      case "week":
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - now.getDay());
-        dateLabel = "This Week";
-        break;
-      case "month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        dateLabel = "This Month";
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        dateLabel = "This Month";
+    // "Today" in the branch's time zone, not the server's.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+    const t = new Date(`${today}T00:00:00Z`);
+    let from;
+    let dateLabel;
+    if (period === "day") {
+      from = today;
+      dateLabel = "Today";
+    } else if (period === "week") {
+      const monday = new Date(t.getTime() - ((t.getUTCDay() + 6) % 7) * 86400000);
+      from = monday.toISOString().slice(0, 10);
+      dateLabel = "This Week";
+    } else {
+      from = `${today.slice(0, 8)}01`;
+      dateLabel = "This Month";
     }
 
-    // Выручка за период
-    const revenueResult = await db.query(
-      `
-      SELECT COALESCE(SUM(s.price), 0) as total_revenue, COUNT(a.id) as appointment_count
-      FROM ${schema}.appointments a
-      JOIN ${schema}.services s ON a.service_id = s.id
-      WHERE a.start_time >= $1 AND a.start_time < $2 AND a.status != 'cancelled'
-      `,
-      [startDate, endDate]
+    const p = metrics.parsePeriod(from, today);
+    const o = await metrics.overview(db, schema, p, { timezone });
+
+    const newClients = await db.query(
+      `SELECT count(*)::int AS n FROM ${schema}.clients
+        WHERE type = 'customer'
+          AND created_at >= ($1::date)::timestamp AT TIME ZONE $3
+          AND created_at <  ($2::date + 1)::timestamp AT TIME ZONE $3`,
+      [p.from, p.to, timezone]
     );
 
-    // Новые клиенты за период
-    const newClientsResult = await db.query(
-      `
-      SELECT COUNT(DISTINCT id) as new_clients
-      FROM ${schema}.clients
-      WHERE created_at >= $1 AND created_at < $2
-      `,
-      [startDate, endDate]
-    );
-
-    // Средний чек
-    const avgCheckResult = await db.query(
-      `
-      SELECT 
-        COALESCE(AVG(s.price), 0) as avg_check,
-        COUNT(a.id) as total_appointments
-      FROM ${schema}.appointments a
-      JOIN ${schema}.services s ON a.service_id = s.id
-      WHERE a.start_time >= $1 AND a.start_time < $2 AND a.status != 'cancelled'
-      `,
-      [startDate, endDate]
-    );
-
+    // Same numbers as the Reports screen (services/reports/metrics.js).
     res.json({
       period: dateLabel,
-      revenue: parseFloat(revenueResult.rows[0].total_revenue),
-      appointments: revenueResult.rows[0].appointment_count,
-      new_clients: newClientsResult.rows[0].new_clients,
-      avg_check: parseFloat(avgCheckResult.rows[0].avg_check),
-      total_appointments: avgCheckResult.rows[0].total_appointments,
+      from: p.from,
+      to: p.to,
+      revenue: o.income.gross, // money received (incl. VAT)
+      revenue_net: o.income.net,
+      appointments: o.services.completed + o.services.planned,
+      completed: o.services.completed,
+      new_clients: newClients.rows[0].n,
+      avg_check: o.avg_ticket,
+      total_appointments: o.services.completed + o.services.planned,
+      unpaid: o.unpaid,
     });
   } catch (err) {
     console.error("DASHBOARD STATS ERROR:", err);
@@ -124,10 +101,10 @@ router.get("/appointments", authenticateToken, requireFeature('dashboard'), asyn
         m.color as master_color,
         c.name as client_name,
         s.name as service_name,
-        s.price as service_price
+        COALESCE(a.price, s.price) as service_price
       FROM ${schema}.appointments a
       JOIN ${schema}.masters m ON a.master_id = m.id
-      JOIN ${schema}.clients c ON a.client_id = c.id
+      LEFT JOIN ${schema}.clients c ON a.client_id = c.id
       JOIN ${schema}.services s ON a.service_id = s.id
       WHERE a.start_time >= $1 AND a.start_time < $2
       ORDER BY a.start_time ASC

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCompanySettings, updateCompanySettings } from "../api/settingsApi";
 import { fetchTenants, createTenant, updateTenant, deleteTenant } from "../api/tenantsApi";
+import { reloadSession } from "../auth/session";
 import "./Settings.css";
 
 /**
@@ -63,8 +64,9 @@ export default function Settings() {
   const [editingBranch, setEditingBranch] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-  // Admin UI gating: backend enforces admin anyway; this just hides buttons
+  // UI gating only; the API enforces the same rules.
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   // VAT
   const [vatRates, setVatRates] = useState([]);
@@ -85,8 +87,10 @@ export default function Settings() {
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
       setIsAdmin(payload?.role === "admin");
+      setIsOwner(payload?.accountRole === "owner");
     } catch {
       setIsAdmin(false);
+      setIsOwner(false);
     }
 
     loadSettings();
@@ -231,6 +235,7 @@ export default function Settings() {
       await createTenant(token, values);
       setShowCreateBranchModal(false);
       await loadBranches();
+      await reloadSession(); // branch switcher picks up the new branch
     } catch (err) {
       setBranchesError(err.message || "Failed to create branch");
     } finally {
@@ -245,6 +250,7 @@ export default function Settings() {
       await updateTenant(token, id, values);
       setEditingBranch(null);
       await loadBranches();
+      await reloadSession();
     } catch (err) {
       setBranchesError(err.message || "Failed to update branch");
     } finally {
@@ -259,6 +265,7 @@ export default function Settings() {
       await deleteTenant(token, deleteConfirmId);
       setDeleteConfirmId(null);
       await loadBranches();
+      await reloadSession();
     } catch (err) {
       setBranchesError(err.message || "Failed to delete branch");
     } finally {
@@ -453,7 +460,7 @@ export default function Settings() {
             <div className="settings-branches-header">
               <h2>Branches</h2>
 
-              {isAdmin && (
+              {isOwner && (
                 <button
                   type="button"
                   className="btn-primary"
@@ -465,7 +472,7 @@ export default function Settings() {
               )}
             </div>
 
-            {!isAdmin && <div className="info-message">You can view branches, but only an admin can create or edit tenants.</div>}
+            {!isOwner && <div className="info-message">Only the account owner can open, rename or close branches.</div>}
 
             <section className="settings-section">
               {branchesLoading ? (
@@ -476,7 +483,6 @@ export default function Settings() {
                     <thead>
                       <tr>
                         <th>Name</th>
-                        <th>Schema</th>
                         <th>Status</th>
                         <th>Created</th>
                         <th>Actions</th>
@@ -488,9 +494,6 @@ export default function Settings() {
                           <tr key={b.id}>
                             <td>{b.name}</td>
                             <td>
-                              <code>{b.schema_name}</code>
-                            </td>
-                            <td>
                               <span className={`status-pill ${b.is_active ? "active" : "inactive"}`}>
                                 {b.is_active ? "Active" : "Inactive"}
                               </span>
@@ -501,8 +504,8 @@ export default function Settings() {
                                 type="button"
                                 className="btn-secondary"
                                 onClick={() => setEditingBranch(b)}
-                                disabled={branchesLoading || !isAdmin}
-                                title={!isAdmin ? "Admin only" : "Edit"}
+                                disabled={branchesLoading || !isOwner}
+                                title={!isOwner ? "Owner only" : "Edit"}
                               >
                                 Edit
                               </button>
@@ -510,17 +513,17 @@ export default function Settings() {
                                 type="button"
                                 className="btn-danger"
                                 onClick={() => setDeleteConfirmId(b.id)}
-                                disabled={branchesLoading || !isAdmin}
-                                title={!isAdmin ? "Admin only" : "Delete"}
+                                disabled={branchesLoading || !isOwner || !b.is_active}
+                                title={!isOwner ? "Owner only" : "Close branch"}
                               >
-                                Delete
+                                Close
                               </button>
                             </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="5" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 700 }}>
+                          <td colSpan="4" style={{ textAlign: "center", color: "#9ca3af", fontWeight: 700 }}>
                             No branches yet
                           </td>
                         </tr>
@@ -535,7 +538,7 @@ export default function Settings() {
               <BranchModal
                 title="New Branch"
                 loading={branchesLoading}
-                initialValues={{ name: "", schema_name: "", is_active: true }}
+                initialValues={{ name: "", is_active: true }}
                 onClose={() => setShowCreateBranchModal(false)}
                 onSubmit={handleCreateBranch}
                 submitLabel="Create"
@@ -548,7 +551,6 @@ export default function Settings() {
                 loading={branchesLoading}
                 initialValues={{
                   name: editingBranch.name || "",
-                  schema_name: editingBranch.schema_name || "",
                   is_active: Boolean(editingBranch.is_active),
                 }}
                 onClose={() => setEditingBranch(null)}
@@ -560,11 +562,11 @@ export default function Settings() {
             {deleteConfirmId && (
               <div className="modal-overlay" onClick={() => setDeleteConfirmId(null)}>
                 <div className="modal-content modal-confirm" onClick={(e) => e.stopPropagation()}>
-                  <h3>Delete Branch</h3>
-                  <p>Are you sure you want to delete this branch? This action cannot be undone.</p>
+                  <h3>Close Branch</h3>
+                  <p>The branch will be deactivated: nobody can work in it, but its data is kept. You can re-activate it later with Edit.</p>
                   <div className="modal-actions">
                     <button className="btn-danger" onClick={handleConfirmDelete} disabled={branchesLoading}>
-                      {branchesLoading ? "Deleting..." : "Delete"}
+                      {branchesLoading ? "Closing..." : "Close branch"}
                     </button>
                     <button type="button" className="btn-secondary" onClick={() => setDeleteConfirmId(null)} disabled={branchesLoading}>
                       Cancel
@@ -690,12 +692,10 @@ export default function Settings() {
 
 function BranchModal({ title, initialValues, loading, onClose, onSubmit, submitLabel }) {
   const [name, setName] = useState(initialValues.name);
-  const [schemaName, setSchemaName] = useState(initialValues.schema_name);
   const [isActive, setIsActive] = useState(initialValues.is_active);
 
   useEffect(() => {
     setName(initialValues.name);
-    setSchemaName(initialValues.schema_name);
     setIsActive(initialValues.is_active);
   }, [initialValues]);
 
@@ -703,7 +703,6 @@ function BranchModal({ title, initialValues, loading, onClose, onSubmit, submitL
     e.preventDefault();
     onSubmit({
       name,
-      schema_name: schemaName,
       is_active: isActive,
     });
   };
@@ -721,18 +720,6 @@ function BranchModal({ title, initialValues, loading, onClose, onSubmit, submitL
               placeholder="e.g., Downtown Branch"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Schema Name *</label>
-            <input
-              type="text"
-              placeholder="e.g., tenant_downtown"
-              value={schemaName}
-              onChange={(e) => setSchemaName(e.target.value)}
               required
               disabled={loading}
             />

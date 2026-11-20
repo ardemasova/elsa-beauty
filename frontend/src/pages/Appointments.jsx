@@ -12,7 +12,7 @@ import {
 
 import CreateAppointmentModal from "./components/CreateAppointmentModal";
 
-import * as XLSX from "xlsx";
+import { exportRowsToExcel } from "../utils/exportExcel";
 
 import "./Dashboard.css";
 import "./Appointments.css";
@@ -405,10 +405,7 @@ export default function Appointments() {
     const range = getDateRangeForAPI();
     const fileName = `appointments_${range.start}_${range.end}.xlsx`;
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Appointments");
-    XLSX.writeFile(wb, fileName);
+    exportRowsToExcel(rows, "Appointments", fileName).catch((e) => alert("Export failed: " + e.message));
   };
 
   const dateRange = getDateRangeForAPI();

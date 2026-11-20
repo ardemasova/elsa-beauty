@@ -1,54 +1,33 @@
-const redis = require('redis');
+/**
+ * Which features (modules) the account's plan includes.
+ * Small in-process cache: one app instance, a handful of accounts, and plans
+ * change rarely. No Redis needed (it was not running in docker-compose, which
+ * made every request fail with 403).
+ */
+const db = require("../db");
 
-const redisClient = redis.createClient({
-  url: process.env.REDIS_URL || 'redis://redis:6379'
-});
+const TTL_MS = 60 * 1000;
+const cache = new Map(); // accountId -> { features, expires }
 
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
-redisClient.connect();
+async function loadAccountFeatures(accountId) {
+  const hit = cache.get(accountId);
+  if (hit && hit.expires > Date.now()) return hit.features;
 
-const CACHE_TTL = 3600; // 1 час
-
-async function loadTenantFeatures(tenantId, db) {
-  try {
-    // 1. Проверить кэш в Redis
-    const cacheKey = `tenant:${tenantId}:features`;
-    const cached = await redisClient.get(cacheKey);
-    
-    if (cached) {
-      console.log(`✅ Cache HIT for tenant ${tenantId}`);
-      return JSON.parse(cached);
-    }
-
-    console.log(`❌ Cache MISS for tenant ${tenantId} - loading from DB`);
-
-    // 2. Загрузить из БД
-    const result = await db.query(`
-      SELECT DISTINCT f.code
-      FROM plan_features pf
-      JOIN plans p ON p.id = pf.plan_id
-      JOIN features f ON f.id = pf.feature_id
-      JOIN public.tenants t ON t.plan_id = p.id
-      WHERE t.id = $1
-    `, [tenantId]);
-
-    const features = result.rows.map(row => row.code);
-
-    // 3. Сохранить в Redis с TTL
-    await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(features));
-
-    return features;
-  } catch (err) {
-    console.error('Feature cache error:', err);
-    // Fallback: вернуть пустой массив (блокирует всё)
-    return [];
-  }
+  const { rows } = await db.query(
+    `SELECT f.code
+       FROM public.accounts a
+       JOIN public.plan_features pf ON pf.plan_id = a.plan_id
+       JOIN public.features f ON f.id = pf.feature_id
+      WHERE a.id = $1`,
+    [accountId]
+  );
+  const features = rows.map((r) => r.code);
+  cache.set(accountId, { features, expires: Date.now() + TTL_MS });
+  return features;
 }
 
-async function invalidateTenantCache(tenantId) {
-  const cacheKey = `tenant:${tenantId}:features`;
-  await redisClient.del(cacheKey);
-  console.log(`🔄 Cache invalidated for tenant ${tenantId}`);
+function invalidateAccountFeatures(accountId) {
+  cache.delete(accountId);
 }
 
-module.exports = { loadTenantFeatures, invalidateTenantCache, redisClient };
+module.exports = { loadAccountFeatures, invalidateAccountFeatures };

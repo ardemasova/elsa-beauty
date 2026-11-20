@@ -6,6 +6,18 @@ const { requireFeature } = require('../middleware/featureGuard');
 
 const router = express.Router();
 
+/** The login linked to a master profile must be a user of this account with access to this branch. */
+async function userBelongsToBranch(req, userId) {
+  const { rows } = await db.query(
+    `SELECT 1 FROM public.users u
+      WHERE u.id = $1 AND u.account_id = $2
+        AND (u.role = 'owner' OR EXISTS (SELECT 1 FROM public.user_tenants ut
+                                          WHERE ut.user_id = u.id AND ut.tenant_id = $3))`,
+    [userId, req.user.accountId, req.tenant.id]
+  );
+  return rows.length > 0;
+}
+
 // =======================
 // GET my master profile (admin/master)
 // =======================
@@ -131,6 +143,10 @@ router.post("/", authenticateToken, requireFeature('masters'), async (req, res) 
   try {
     const schema = await resolveTenantSchema(req);
 
+    if (!(await userBelongsToBranch(req, userId))) {
+      return res.status(400).json({ message: "The selected user does not belong to this branch" });
+    }
+
     const { rows } = await db.query(
       `
       INSERT INTO ${schema}.masters (name, commission, user_id)
@@ -166,6 +182,10 @@ router.put("/:id", authenticateToken, requireFeature('masters'), async (req, res
 
   try {
     const schema = await resolveTenantSchema(req);
+
+    if (!(await userBelongsToBranch(req, userId))) {
+      return res.status(400).json({ message: "The selected user does not belong to this branch" });
+    }
 
     const checkMaster = await db.query(`SELECT id FROM ${schema}.masters WHERE id = $1`, [id]);
 

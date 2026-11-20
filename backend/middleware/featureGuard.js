@@ -1,28 +1,22 @@
-const { loadTenantFeatures } = require('../services/featureCache');
+const { loadAccountFeatures } = require("../services/featureCache");
 
+/** Blocks the route unless the account's plan includes `featureCode`. Use after authenticateToken. */
 function requireFeature(featureCode) {
   return async (req, res, next) => {
     try {
-      const tenantId = req.user?.tenantId;
-      
-      if (!tenantId) {
-        return res.status(401).json({ error: 'Tenant ID not found in token' });
-      }
+      const accountId = req.user?.accountId;
+      if (!accountId) return res.status(401).json({ message: "Authentication required" });
 
-      const features = await loadTenantFeatures(tenantId, req.db);
-
+      const features = await loadAccountFeatures(accountId);
       if (!features.includes(featureCode)) {
         return res.status(403).json({
-          error: 'Feature not available for your plan',
+          message: "This module is not included in your plan",
           feature: featureCode,
-          required_plan: featureCode
         });
       }
-
       next();
     } catch (err) {
-      console.error('Feature guard error:', err);
-      res.status(500).json({ error: 'Feature check failed' });
+      next(err);
     }
   };
 }
